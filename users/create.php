@@ -1,7 +1,9 @@
 <?php
 
-require_once "../includes/auth.php";
+require_once "../includes/role.php";
 require_once "../config/database.php";
+
+requireRole(["admin"]);
 
 $error = "";
 $success = "";
@@ -68,78 +70,66 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
 <body>
 
-<h1>Create User</h1>
+    <h1>Create User</h1>
 
-<?php if ($error !== "") { ?>
+    <?php if ($error !== "") { ?>
 
-<p>
-    <strong><?php echo $error; ?></strong>
-</p>
+        <p>
+            <strong><?php echo $error; ?></strong>
+        </p>
 
-<?php } ?>
+    <?php } ?>
 
-<form method="POST">
+    <form method="POST">
 
-    <label>Name</label>
+        <label>Name</label>
+        <br>
+
+        <input type="text" name="name" required>
+
+        <br><br>
+
+
+        <label>Email</label>
+        <br>
+
+        <input type="email" name="email" required>
+
+        <br><br>
+
+
+        <label>Password</label>
+        <br>
+
+        <input type="password" name="password" required>
+
+        <br><br>
+
+
+        <label>Role</label>
+        <br>
+
+        <select name="role" required>
+
+            <option value="admin">Admin</option>
+            <option value="waiter">Waiter</option>
+            <option value="kitchen">Kitchen</option>
+
+        </select>
+
+        <br><br>
+
+        <button type="submit">
+            Create User
+        </button>
+
+    </form>
+
     <br>
 
-    <input
-        type="text"
-        name="name"
-        required
-    >
-
-    <br><br>
-
-
-    <label>Email</label>
-    <br>
-
-    <input
-        type="email"
-        name="email"
-        required
-    >
-
-    <br><br>
-
-
-    <label>Password</label>
-    <br>
-
-    <input
-        type="password"
-        name="password"
-        required
-    >
-
-    <br><br>
-
-
-    <label>Role</label>
-    <br>
-
-    <select name="role" required>
-
-        <option value="admin">Admin</option>
-        <option value="waiter">Waiter</option>
-        <option value="kitchen">Kitchen</option>
-
-    </select>
-
-    <br><br>
-
-    <button type="submit">
-        Create User
-    </button>
-
-</form>
-
-<br>
-
-<a href="index.php">
-    Back to Users
-</a>
+    <a href="index.php">
+        Back to Users
+    </a>
 
 </body>
 

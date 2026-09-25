@@ -1,7 +1,9 @@
 <?php
 
-require_once "../includes/auth.php";
+require_once "../includes/role.php";
+
 require_once "../config/database.php";
+requireRole(["admin"]);
 
 $id = $_GET["id"];
 
@@ -122,122 +124,104 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
 <body>
 
-<h1>Edit User</h1>
+    <h1>Edit User</h1>
 
-<?php if ($error !== "") { ?>
+    <?php if ($error !== "") { ?>
 
-<p>
-    <strong><?php echo $error; ?></strong>
-</p>
+        <p>
+            <strong><?php echo $error; ?></strong>
+        </p>
 
-<?php } ?>
+    <?php } ?>
 
-<form method="POST">
+    <form method="POST">
 
-    <label>Name</label>
+        <label>Name</label>
+        <br>
+
+        <input type="text" name="name" value="<?php echo $user["name"]; ?>" required>
+
+        <br><br>
+
+
+        <label>Email</label>
+        <br>
+
+        <input type="email" name="email" value="<?php echo $user["email"]; ?>" required>
+
+        <br><br>
+
+
+        <label>New Password</label>
+        <br>
+
+        <input type="password" name="password">
+
+        <p>
+            Leave empty if you don't want to change the password.
+        </p>
+
+
+        <label>Role</label>
+        <br>
+
+        <select name="role" required>
+
+            <option value="admin" <?php if ($user["role"] === "admin") {
+                echo "selected";
+            } ?>>
+                Admin
+            </option>
+
+            <option value="waiter" <?php if ($user["role"] === "waiter") {
+                echo "selected";
+            } ?>>
+                Waiter
+            </option>
+
+            <option value="kitchen" <?php if ($user["role"] === "kitchen") {
+                echo "selected";
+            } ?>>
+                Kitchen
+            </option>
+
+        </select>
+
+        <br><br>
+
+
+        <label>Status</label>
+        <br>
+
+        <select name="is_active" required>
+
+            <option value="1" <?php if ($user["is_active"] == 1) {
+                echo "selected";
+            } ?>>
+                Active
+            </option>
+
+            <option value="0" <?php if ($user["is_active"] == 0) {
+                echo "selected";
+            } ?>>
+                Inactive
+            </option>
+
+        </select>
+
+        <br><br>
+
+        <button type="submit">
+            Update User
+        </button>
+
+    </form>
+
     <br>
 
-    <input
-        type="text"
-        name="name"
-        value="<?php echo $user["name"]; ?>"
-        required
-    >
-
-    <br><br>
-
-
-    <label>Email</label>
-    <br>
-
-    <input
-        type="email"
-        name="email"
-        value="<?php echo $user["email"]; ?>"
-        required
-    >
-
-    <br><br>
-
-
-    <label>New Password</label>
-    <br>
-
-    <input
-        type="password"
-        name="password"
-    >
-
-    <p>
-        Leave empty if you don't want to change the password.
-    </p>
-
-
-    <label>Role</label>
-    <br>
-
-    <select name="role" required>
-
-        <option
-            value="admin"
-            <?php if ($user["role"] === "admin") { echo "selected"; } ?>
-        >
-            Admin
-        </option>
-
-        <option
-            value="waiter"
-            <?php if ($user["role"] === "waiter") { echo "selected"; } ?>
-        >
-            Waiter
-        </option>
-
-        <option
-            value="kitchen"
-            <?php if ($user["role"] === "kitchen") { echo "selected"; } ?>
-        >
-            Kitchen
-        </option>
-
-    </select>
-
-    <br><br>
-
-
-    <label>Status</label>
-    <br>
-
-    <select name="is_active" required>
-
-        <option
-            value="1"
-            <?php if ($user["is_active"] == 1) { echo "selected"; } ?>
-        >
-            Active
-        </option>
-
-        <option
-            value="0"
-            <?php if ($user["is_active"] == 0) { echo "selected"; } ?>
-        >
-            Inactive
-        </option>
-
-    </select>
-
-    <br><br>
-
-    <button type="submit">
-        Update User
-    </button>
-
-</form>
-
-<br>
-
-<a href="index.php">
-    Back to Users
-</a>
+    <a href="index.php">
+        Back to Users
+    </a>
 
 </body>
 

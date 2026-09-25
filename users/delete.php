@@ -1,7 +1,9 @@
 <?php
 
-require_once "../includes/auth.php";
+require_once "../includes/role.php";
+
 require_once "../config/database.php";
+requireRole(["admin"]);
 
 $id = $_GET["id"];
 

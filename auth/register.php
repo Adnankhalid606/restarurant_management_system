@@ -3,15 +3,12 @@
 require_once "../config/database.php";
 
 $error = "";
-$success = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     $name = $_POST["name"];
     $email = $_POST["email"];
     $password = $_POST["password"];
-    $role = $_POST["role"];
-
 
     // Check if email already exists
     $sql = "SELECT id
@@ -19,10 +16,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             WHERE email = ?";
 
     $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, "s", $email);
+
+    mysqli_stmt_bind_param(
+        $stmt,
+        "s",
+        $email
+    );
+
     mysqli_stmt_execute($stmt);
 
     $result = mysqli_stmt_get_result($stmt);
+
 
     if (mysqli_num_rows($result) > 0) {
 
@@ -31,14 +35,28 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     } else {
 
         // Hash password
-        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+        $hashed_password = password_hash(
+            $password,
+            PASSWORD_DEFAULT
+        );
 
 
-        // Create user
-        $sql = "INSERT INTO users (name, email, password, role)
+        // Create admin account
+        $role = "admin";
+
+
+        $sql = "INSERT INTO users
+                (
+                    name,
+                    email,
+                    password,
+                    role
+                )
                 VALUES (?, ?, ?, ?)";
 
+
         $stmt = mysqli_prepare($conn, $sql);
+
 
         mysqli_stmt_bind_param(
             $stmt,
@@ -49,10 +67,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $role
         );
 
+
         mysqli_stmt_execute($stmt);
 
+
+        // Redirect to login
         header("Location: login.php?registered=1");
-exit;
+        exit;
     }
 }
 
@@ -62,30 +83,24 @@ exit;
 <html>
 
 <head>
-    <title>Register</title>
+    <title>Create Admin Account</title>
 </head>
 
 <body>
 
-<h1>Register User</h1>
+<h1>Create Admin Account</h1>
+
 
 <?php if ($error !== "") { ?>
 
-<p>
-    <strong><?php echo $error; ?></strong>
-</p>
+    <p>
+        <strong>
+            <?php echo $error; ?>
+        </strong>
+    </p>
 
 <?php } ?>
 
-<?php if ($success !== "") { ?>
-
-<p>
-    <strong><?php echo $success; ?></strong>
-</p>
-
-<a href="login.php">Go to Login</a>
-
-<?php } ?>
 
 <form method="POST">
 
@@ -125,28 +140,18 @@ exit;
     <br><br>
 
 
-    <label>Role</label>
-    <br>
-
-    <select name="role" required>
-
-        <option value="admin">Admin</option>
-        <option value="waiter">Waiter</option>
-        <option value="kitchen">Kitchen</option>
-
-    </select>
-
-    <br><br>
-
     <button type="submit">
-        Register
+        Create Admin Account
     </button>
 
 </form>
 
+
 <br>
 
-<a href="login.php">Back to Login</a>
+<a href="login.php">
+    Back to Login
+</a>
 
 </body>
 

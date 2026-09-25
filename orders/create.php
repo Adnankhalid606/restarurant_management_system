@@ -1,22 +1,32 @@
 <?php
 
+require_once "../includes/role.php";
 require_once "../config/database.php";
 
+requireRole(["admin", "waiter"]);
+
+$error = "";
+
+
+//Fetch all customers for dropdown
 $customers = mysqli_query(
     $conn,
-    "SELECT id, name
+    "SELECT id, name, phone
      FROM customers
      ORDER BY name ASC"
 );
 
+
+//fetch tables that are currently available
 $tables = mysqli_query(
     $conn,
-    "SELECT id, table_number
+    "SELECT id, table_number, capacity
      FROM restaurant_tables
      WHERE status = 'available'
      ORDER BY table_number ASC"
 );
 
+//All available menu items
 $menu_items = mysqli_query(
     $conn,
     "SELECT id, name, price
@@ -25,68 +35,127 @@ $menu_items = mysqli_query(
      ORDER BY name ASC"
 );
 
-$error = "";
+
+//All active waiters
+$waiters = mysqli_query(
+    $conn,
+    "SELECT id, name
+     FROM users
+     WHERE role = 'waiter'
+     AND is_active = 1
+     ORDER BY name ASC"
+);
+
+
+
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $customer_id = $_POST["customer_id"];
-    $order_type = $_POST["order_type"];
+    $customer_id = !empty($_POST["customer_id"])
+        ? (int) $_POST["customer_id"]
+        : null;
 
-    $table_id = null;
+    $order_type = $_POST["order_type"] ?? "";
 
-    if ($order_type === "dine_in") {
+    $table_id = !empty($_POST["table_id"])
+        ? (int) $_POST["table_id"]
+        : null;
 
-        $table_id = $_POST["table_id"];
 
-        if (empty($table_id)) {
+    if ($_SESSION["role"] === "waiter") {
 
-            $error = "Please select a table.";
+        // Waiter automatically gets assigned to their own order.
+        $waiter_id = (int) $_SESSION["user_id"];
 
+    } else {
+
+        // Admin must select a waiter.
+        $waiter_id = !empty($_POST["waiter_id"])
+            ? (int) $_POST["waiter_id"]
+            : null;
+
+        if (!$waiter_id) {
+            $error = "Please select a waiter.";
         }
-
     }
 
-    $menu_item_ids = $_POST["menu_item_id"];
-    $quantities = $_POST["quantity"];
 
     if ($error === "") {
 
-        if (
-            empty($menu_item_ids)
-            ||
-            empty($quantities)
-        ) {
+        $allowed_order_types = [
+            "dine_in",
+            "delivery",
+            "pickup"
+        ];
 
-            $error = "Please add at least one menu item.";
-
-        } elseif (count($menu_item_ids) !== count($quantities)) {
-
-            $error = "Invalid order items.";
-
+        if (!in_array($order_type, $allowed_order_types)) {
+            $error = "Invalid order type.";
         }
-
     }
 
-    /*
-     * Check reservation for dine-in order
-     */
+
 
     if ($error === "" && $order_type === "dine_in") {
 
-        $current_date = date("Y-m-d");
+        if (!$table_id) {
+            $error = "Please select a table.";
+        }
+    }
+
+
+
+    if ($order_type !== "dine_in") {
+        $table_id = null;
+    }
+
+
+
+    $menu_item_ids = $_POST["menu_item_id"] ?? [];
+    $quantities = $_POST["quantity"] ?? [];
+
+    if ($error === "" && empty($menu_item_ids)) {
+        $error = "Please add at least one menu item.";
+    }
+
+
+    if ($error === "") {
+
+        $sql = "SELECT id
+                FROM users
+                WHERE id = ?
+                AND role = 'waiter'
+                AND is_active = 1";
+
+        $stmt = mysqli_prepare($conn, $sql);
+
+        mysqli_stmt_bind_param(
+            $stmt,
+            "i",
+            $waiter_id
+        );
+
+        mysqli_stmt_execute($stmt);
+
+        $result = mysqli_stmt_get_result($stmt);
+
+        if (mysqli_num_rows($result) === 0) {
+            $error = "Selected waiter is invalid or inactive.";
+        }
+    }
+
+
+
+    if ($error === "" && $order_type === "dine_in") {
+
+        $today = date("Y-m-d");
         $current_time = date("H:i:s");
 
         $sql = "SELECT id
                 FROM reservations
-
                 WHERE table_id = ?
-
                 AND reservation_date = ?
-
                 AND status IN ('pending', 'confirmed')
-
                 AND reservation_time <= ?
-
                 AND reservation_end_time > ?";
 
         $stmt = mysqli_prepare($conn, $sql);
@@ -95,7 +164,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $stmt,
             "isss",
             $table_id,
-            $current_date,
+            $today,
             $current_time,
             $current_time
         );
@@ -105,16 +174,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $result = mysqli_stmt_get_result($stmt);
 
         if (mysqli_num_rows($result) > 0) {
-
             $error = "This table is currently reserved.";
-
         }
-
     }
 
-    /*
-     * Create order
-     */
 
     if ($error === "") {
 
@@ -124,32 +187,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             $total_amount = 0;
 
-            $items = [];
 
-            /*
-             * Get official prices from database
-             */
 
-            foreach ($menu_item_ids as $index => $menu_item_id) {
+            $verified_items = [];
 
-                $quantity = $quantities[$index];
+            for ($i = 0; $i < count($menu_item_ids); $i++) {
 
-                if ($quantity < 1) {
+                $menu_item_id = (int) $menu_item_ids[$i];
+                $quantity = (int) $quantities[$i];
 
-                    throw new Exception(
-                        "Quantity must be at least 1."
-                    );
+                if ($menu_item_id <= 0 || $quantity <= 0) {
+                    throw new Exception("Invalid menu item or quantity.");
                 }
 
-                $sql = "SELECT
-                            id,
-                            name,
-                            price
-
+                $sql = "SELECT id, price
                         FROM menu_items
-
                         WHERE id = ?
-
                         AND is_available = 1";
 
                 $stmt = mysqli_prepare($conn, $sql);
@@ -167,19 +220,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $menu_item = mysqli_fetch_assoc($result);
 
                 if (!$menu_item) {
-
-                    throw new Exception(
-                        "Menu item not found or unavailable."
-                    );
+                    throw new Exception("Menu item is unavailable.");
                 }
 
-                $unit_price = $menu_item["price"];
+                $unit_price = (float) $menu_item["price"];
 
                 $subtotal = $unit_price * $quantity;
 
                 $total_amount += $subtotal;
 
-                $items[] = [
+                $verified_items[] = [
                     "menu_item_id" => $menu_item_id,
                     "quantity" => $quantity,
                     "unit_price" => $unit_price,
@@ -187,9 +237,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 ];
             }
 
-            /*
-             * Create order
-             */
+
 
             if ($order_type === "dine_in") {
 
@@ -197,15 +245,51 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         (
                             customer_id,
                             table_id,
+                            waiter_id,
                             order_type,
                             status,
                             payment_status,
                             total_amount
                         )
-
                         VALUES
                         (
                             ?,
+                            ?,
+                            ?,
+                            ?,
+                            'pending',
+                            'unpaid',
+                            ?
+                        )";
+
+                $stmt = mysqli_prepare($conn, $sql);
+
+                mysqli_stmt_bind_param(
+                    $stmt,
+                    "iiisd",
+                    $customer_id,
+                    $table_id,
+                    $waiter_id,
+                    $order_type,
+                    $total_amount
+                );
+
+            } else {
+
+                $sql = "INSERT INTO orders
+                        (
+                            customer_id,
+                            table_id,
+                            waiter_id,
+                            order_type,
+                            status,
+                            payment_status,
+                            total_amount
+                        )
+                        VALUES
+                        (
+                            ?,
+                            NULL,
                             ?,
                             ?,
                             'pending',
@@ -219,39 +303,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     $stmt,
                     "iisd",
                     $customer_id,
-                    $table_id,
-                    $order_type,
-                    $total_amount
-                );
-
-            } else {
-
-                $sql = "INSERT INTO orders
-                        (
-                            customer_id,
-                            table_id,
-                            order_type,
-                            status,
-                            payment_status,
-                            total_amount
-                        )
-
-                        VALUES
-                        (
-                            ?,
-                            NULL,
-                            ?,
-                            'pending',
-                            'unpaid',
-                            ?
-                        )";
-
-                $stmt = mysqli_prepare($conn, $sql);
-
-                mysqli_stmt_bind_param(
-                    $stmt,
-                    "isd",
-                    $customer_id,
+                    $waiter_id,
                     $order_type,
                     $total_amount
                 );
@@ -261,11 +313,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             $order_id = mysqli_insert_id($conn);
 
-            /*
-             * Insert all order items
-             */
 
-            foreach ($items as $item) {
+
+            foreach ($verified_items as $item) {
 
                 $sql = "INSERT INTO order_items
                         (
@@ -275,8 +325,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             unit_price,
                             subtotal
                         )
-
-                        VALUES (?, ?, ?, ?, ?)";
+                        VALUES
+                        (
+                            ?,
+                            ?,
+                            ?,
+                            ?,
+                            ?
+                        )";
 
                 $stmt = mysqli_prepare($conn, $sql);
 
@@ -293,15 +349,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 mysqli_stmt_execute($stmt);
             }
 
-            /*
-             * Occupy table for dine-in
-             */
+
+            // Occupy Table
 
             if ($order_type === "dine_in") {
 
                 $sql = "UPDATE restaurant_tables
                         SET status = 'occupied'
-                        WHERE id = ?";
+                        WHERE id = ?
+                        AND status = 'available'";
 
                 $stmt = mysqli_prepare($conn, $sql);
 
@@ -312,18 +368,28 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 );
 
                 mysqli_stmt_execute($stmt);
+
+                if (mysqli_stmt_affected_rows($stmt) === 0) {
+                    throw new Exception(
+                        "The selected table is no longer available."
+                    );
+                }
             }
+
 
             mysqli_commit($conn);
 
-            header("Location: view.php?id=" . $order_id);
+            header(
+                "Location: view.php?id=" . $order_id
+            );
+
             exit;
 
-        } catch (Exception $error) {
+        } catch (Exception $e) {
 
             mysqli_rollback($conn);
 
-            $error = $error->getMessage();
+            $error = $e->getMessage();
         }
     }
 }
@@ -334,7 +400,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <html>
 
 <head>
+
     <title>Create Order</title>
+
 </head>
 
 <body>
@@ -343,9 +411,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     <?php if ($error !== "") { ?>
 
-        <p>
+        <p style="color: red;">
             <strong>
-                <?php echo $error; ?>
+                <?php echo htmlspecialchars($error); ?>
             </strong>
         </p>
 
@@ -353,19 +421,28 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     <form method="POST">
 
-        <label>Customer</label>
-        <br>
+        <label>
+            Customer:
+        </label>
 
-        <select name="customer_id" required>
+        <select name="customer_id">
 
             <option value="">
-                Select Customer
+                Walk-in Customer
             </option>
 
             <?php while ($customer = mysqli_fetch_assoc($customers)) { ?>
 
                 <option value="<?php echo $customer["id"]; ?>">
-                    <?php echo $customer["name"]; ?>
+
+                    <?php
+                    echo htmlspecialchars($customer["name"]);
+
+                    if (!empty($customer["phone"])) {
+                        echo " - " . htmlspecialchars($customer["phone"]);
+                    }
+                    ?>
+
                 </option>
 
             <?php } ?>
@@ -374,13 +451,57 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         <br><br>
 
-        <label>Order Type</label>
-        <br>
 
-        <select
-            name="order_type"
-            id="orderType"
-        >
+        <?php if ($_SESSION["role"] === "admin") { ?>
+
+            <label>
+                Waiter:
+            </label>
+
+            <select name="waiter_id" required>
+
+                <option value="">
+                    Select Waiter
+                </option>
+
+                <?php while ($waiter = mysqli_fetch_assoc($waiters)) { ?>
+
+                    <option value="<?php echo $waiter["id"]; ?>">
+
+                        <?php echo htmlspecialchars($waiter["name"]); ?>
+
+                    </option>
+
+                <?php } ?>
+
+            </select>
+
+            <br><br>
+
+        <?php } else { ?>
+
+            <p>
+                <strong>
+                    Waiter:
+                </strong>
+
+                <?php echo htmlspecialchars($_SESSION["user_name"]); ?>
+            </p>
+
+        <?php } ?>
+
+
+
+
+        <label>
+            Order Type:
+        </label>
+
+        <select name="order_type" id="orderType" required>
+
+            <option value="">
+                Select Order Type
+            </option>
 
             <option value="dine_in">
                 Dine In
@@ -398,12 +519,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         <br><br>
 
-        <div id="tableField">
 
-            <label>Table</label>
-            <br>
 
-            <select name="table_id" id="tableId">
+
+        <div id="tableSection" style="display: none;">
+
+            <label>
+                Table:
+            </label>
+
+            <select name="table_id">
 
                 <option value="">
                     Select Table
@@ -412,7 +537,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <?php while ($table = mysqli_fetch_assoc($tables)) { ?>
 
                     <option value="<?php echo $table["id"]; ?>">
-                        Table <?php echo $table["table_number"]; ?>
+
+                        Table
+                        <?php echo htmlspecialchars($table["table_number"]); ?>
+
+                        |
+                        Capacity:
+                        <?php echo htmlspecialchars($table["capacity"]); ?>
+
                     </option>
 
                 <?php } ?>
@@ -423,14 +555,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         </div>
 
-        <h2>Order Items</h2>
 
-        <div id="orderItems">
+
+
+        <h3>Order Items</h3>
+
+        <div id="itemsContainer">
 
             <div class="order-item">
-
-                <label>Menu Item</label>
-                <br>
 
                 <select name="menu_item_id[]" required>
 
@@ -442,40 +574,33 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     mysqli_data_seek($menu_items, 0);
                     ?>
 
-                    <?php while ($menu_item = mysqli_fetch_assoc($menu_items)) { ?>
+                    <?php while ($item = mysqli_fetch_assoc($menu_items)) { ?>
 
-                        <option value="<?php echo $menu_item["id"]; ?>">
-                            <?php echo $menu_item["name"]; ?>
-                            - <?php echo $menu_item["price"]; ?>
+                        <option value="<?php echo $item["id"]; ?>">
+
+                            <?php echo htmlspecialchars($item["name"]); ?>
+
+                            -
+                            <?php echo number_format(
+                                $item["price"],
+                                2
+                            ); ?>
+
                         </option>
 
                     <?php } ?>
 
                 </select>
 
-                <br>
-
-                <label>Quantity</label>
-                <br>
-
-                <input
-                    type="number"
-                    name="quantity[]"
-                    min="1"
-                    value="1"
-                    required
-                >
-
-                <br><br>
+                <input type="number" name="quantity[]" min="1" value="1" required>
 
             </div>
 
         </div>
 
-        <button
-            type="button"
-            onclick="addItem()"
-        >
+        <br>
+
+        <button type="button" onclick="addItem()">
             Add Another Item
         </button>
 
@@ -487,50 +612,33 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     </form>
 
-    <br>
-
-    <a href="index.php">
-        Back to Orders
-    </a>
 
     <script>
 
+
+
         const orderType = document.getElementById("orderType");
 
-        const tableField = document.getElementById("tableField");
+        const tableSection = document.getElementById("tableSection");
 
-        const tableId = document.getElementById("tableId");
+        orderType.addEventListener("change", function () {
 
-        function updateTableField() {
+            if (this.value === "dine_in") {
 
-            if (orderType.value === "dine_in") {
-
-                tableField.style.display = "block";
-
-                tableId.required = true;
+                tableSection.style.display = "block";
 
             } else {
 
-                tableField.style.display = "none";
-
-                tableId.required = false;
-
-                tableId.value = "";
+                tableSection.style.display = "none";
             }
-        }
 
-        orderType.addEventListener(
-            "change",
-            updateTableField
-        );
-
-        updateTableField();
+        });
 
 
         function addItem() {
 
-            const orderItems =
-                document.getElementById("orderItems");
+            const container =
+                document.getElementById("itemsContainer");
 
             const firstItem =
                 document.querySelector(".order-item");
@@ -538,15 +646,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             const newItem =
                 firstItem.cloneNode(true);
 
-            newItem
-                .querySelector("select")
-                .value = "";
+            newItem.querySelector(
+                'select[name="menu_item_id[]"]'
+            ).value = "";
 
-            newItem
-                .querySelector("input")
-                .value = 1;
+            newItem.querySelector(
+                'input[name="quantity[]"]'
+            ).value = 1;
 
-            orderItems.appendChild(newItem);
+            container.appendChild(newItem);
         }
 
     </script>

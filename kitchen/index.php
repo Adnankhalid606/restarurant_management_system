@@ -1,19 +1,32 @@
 <?php
 
 require_once "../config/database.php";
+require_once "../includes/role.php";
 
+requireRole(["admin", "kitchen"]);
+
+
+// Get kitchen orders
 
 $sql = "SELECT
             orders.id,
             orders.order_type,
             orders.status,
             orders.created_at,
-            customers.name AS customer_name
+            customers.name AS customer_name,
+            restaurant_tables.table_number,
+            users.name AS waiter_name
 
         FROM orders
 
         LEFT JOIN customers
             ON orders.customer_id = customers.id
+
+        LEFT JOIN restaurant_tables
+            ON orders.table_id = restaurant_tables.id
+
+        LEFT JOIN users
+            ON orders.waiter_id = users.id
 
         WHERE orders.status IN ('pending', 'preparing', 'ready')
 
@@ -32,18 +45,49 @@ $result = mysqli_query($conn, $sql);
 
 <body>
 
-    <h1>Kitchen Orders</h1>
+    <h1>
+        Kitchen Orders
+    </h1>
+
 
     <table border="1" cellpadding="10">
 
         <tr>
-            <th>Order ID</th>
-            <th>Customer</th>
-            <th>Order Type</th>
-            <th>Status</th>
-            <th>Created</th>
-            <th>Actions</th>
+
+            <th>
+                Order ID
+            </th>
+
+            <th>
+                Customer
+            </th>
+
+            <th>
+                Table
+            </th>
+
+            <th>
+                Waiter
+            </th>
+
+            <th>
+                Order Type
+            </th>
+
+            <th>
+                Status
+            </th>
+
+            <th>
+                Created
+            </th>
+
+            <th>
+                Actions
+            </th>
+
         </tr>
+
 
         <?php while ($order = mysqli_fetch_assoc($result)) { ?>
 
@@ -54,7 +98,21 @@ $result = mysqli_query($conn, $sql);
                 </td>
 
                 <td>
-                    <?php echo $order["customer_name"] ?? "Walk-in"; ?>
+                    <?php
+                    echo $order["customer_name"] ?? "Walk-in";
+                    ?>
+                </td>
+
+                <td>
+                    <?php
+                    echo $order["table_number"] ?? "-";
+                    ?>
+                </td>
+
+                <td>
+                    <?php
+                    echo $order["waiter_name"] ?? "-";
+                    ?>
                 </td>
 
                 <td>
