@@ -30,12 +30,15 @@ $result = mysqli_query($conn, $sql);
     <table border="1" cellpadding="10">
 
         <tr>
+
             <th>ID</th>
             <th>Name</th>
             <th>Unit</th>
             <th>Current Stock</th>
             <th>Minimum Stock</th>
+            <th>Status</th>
             <th>Actions</th>
+
         </tr>
 
         <?php while ($material = mysqli_fetch_assoc($result)) { ?>
@@ -60,6 +63,17 @@ $result = mysqli_query($conn, $sql);
 
                 <td>
                     <?php echo $material["minimum_stock"]; ?>
+                </td>
+                <td>
+                    <?php
+
+                    if ($material["current_stock"] <= $material["minimum_stock"]) {
+                        echo "Low Stock";
+                    } else {
+                        echo "Stock OK";
+                    }
+
+                    ?>
                 </td>
 
                 <td>
