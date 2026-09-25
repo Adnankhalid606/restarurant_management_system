@@ -4,7 +4,9 @@ require_once "../config/database.php";
 
 $customers = mysqli_query(
     $conn,
-    "SELECT id, name FROM customers ORDER BY name ASC"
+    "SELECT id, name
+     FROM customers
+     ORDER BY name ASC"
 );
 
 $tables = mysqli_query(
@@ -23,119 +25,307 @@ $menu_items = mysqli_query(
      ORDER BY name ASC"
 );
 
+$error = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     $customer_id = $_POST["customer_id"];
-    $table_id = $_POST["table_id"];
     $order_type = $_POST["order_type"];
 
-    $menu_item_id = $_POST["menu_item_id"];
-    $quantity = $_POST["quantity"];
+    $table_id = null;
 
-    /*
-     * Get the price of the selected menu item.
-     */
-    $stmt = mysqli_prepare(
-        $conn,
-        "SELECT price
-         FROM menu_items
-         WHERE id = ?"
-    );
+    if ($order_type === "dine_in") {
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        "i",
-        $menu_item_id
-    );
+        $table_id = $_POST["table_id"];
 
-    mysqli_stmt_execute($stmt);
+        if (empty($table_id)) {
 
-    $result = mysqli_stmt_get_result($stmt);
+            $error = "Please select a table.";
 
-    $menu_item = mysqli_fetch_assoc($result);
+        }
 
-    if (!$menu_item) {
-        die("Menu item not found.");
     }
 
-    $unit_price = $menu_item["price"];
+    $menu_item_ids = $_POST["menu_item_id"];
+    $quantities = $_POST["quantity"];
 
-    $subtotal = $unit_price * $quantity;
+    if ($error === "") {
 
+        if (
+            empty($menu_item_ids)
+            ||
+            empty($quantities)
+        ) {
 
-    /*
-     * Create the main order.
-     */
-    $stmt = mysqli_prepare(
-        $conn,
-        "INSERT INTO orders
-        (customer_id, table_id, order_type, total_amount)
-        VALUES (?, ?, ?, ?)"
-    );
+            $error = "Please add at least one menu item.";
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        "iisd",
-        $customer_id,
-        $table_id,
-        $order_type,
-        $subtotal
-    );
+        } elseif (count($menu_item_ids) !== count($quantities)) {
 
-    mysqli_stmt_execute($stmt);
+            $error = "Invalid order items.";
 
+        }
+
+    }
 
     /*
-     * Get the ID of the newly created order.
+     * Check reservation for dine-in order
      */
-    $order_id = mysqli_insert_id($conn);
 
+    if ($error === "" && $order_type === "dine_in") {
+
+        $current_date = date("Y-m-d");
+        $current_time = date("H:i:s");
+
+        $sql = "SELECT id
+                FROM reservations
+
+                WHERE table_id = ?
+
+                AND reservation_date = ?
+
+                AND status IN ('pending', 'confirmed')
+
+                AND reservation_time <= ?
+
+                AND reservation_end_time > ?";
+
+        $stmt = mysqli_prepare($conn, $sql);
+
+        mysqli_stmt_bind_param(
+            $stmt,
+            "isss",
+            $table_id,
+            $current_date,
+            $current_time,
+            $current_time
+        );
+
+        mysqli_stmt_execute($stmt);
+
+        $result = mysqli_stmt_get_result($stmt);
+
+        if (mysqli_num_rows($result) > 0) {
+
+            $error = "This table is currently reserved.";
+
+        }
+
+    }
 
     /*
-     * Create the order item.
+     * Create order
      */
-    $stmt = mysqli_prepare(
-        $conn,
-        "INSERT INTO order_items
-        (order_id, menu_item_id, quantity, unit_price, subtotal)
-        VALUES (?, ?, ?, ?, ?)"
-    );
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        "iiidd",
-        $order_id,
-        $menu_item_id,
-        $quantity,
-        $unit_price,
-        $subtotal
-    );
+    if ($error === "") {
 
-    mysqli_stmt_execute($stmt);
+        mysqli_begin_transaction($conn);
 
+        try {
 
-    /*
-     * Mark the table as occupied.
-     */
-    $stmt = mysqli_prepare(
-        $conn,
-        "UPDATE restaurant_tables
-         SET status = 'occupied'
-         WHERE id = ?"
-    );
+            $total_amount = 0;
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        "i",
-        $table_id
-    );
+            $items = [];
 
-    mysqli_stmt_execute($stmt);
+            /*
+             * Get official prices from database
+             */
 
+            foreach ($menu_item_ids as $index => $menu_item_id) {
 
-    header("Location: index.php");
-    exit;
+                $quantity = $quantities[$index];
+
+                if ($quantity < 1) {
+
+                    throw new Exception(
+                        "Quantity must be at least 1."
+                    );
+                }
+
+                $sql = "SELECT
+                            id,
+                            name,
+                            price
+
+                        FROM menu_items
+
+                        WHERE id = ?
+
+                        AND is_available = 1";
+
+                $stmt = mysqli_prepare($conn, $sql);
+
+                mysqli_stmt_bind_param(
+                    $stmt,
+                    "i",
+                    $menu_item_id
+                );
+
+                mysqli_stmt_execute($stmt);
+
+                $result = mysqli_stmt_get_result($stmt);
+
+                $menu_item = mysqli_fetch_assoc($result);
+
+                if (!$menu_item) {
+
+                    throw new Exception(
+                        "Menu item not found or unavailable."
+                    );
+                }
+
+                $unit_price = $menu_item["price"];
+
+                $subtotal = $unit_price * $quantity;
+
+                $total_amount += $subtotal;
+
+                $items[] = [
+                    "menu_item_id" => $menu_item_id,
+                    "quantity" => $quantity,
+                    "unit_price" => $unit_price,
+                    "subtotal" => $subtotal
+                ];
+            }
+
+            /*
+             * Create order
+             */
+
+            if ($order_type === "dine_in") {
+
+                $sql = "INSERT INTO orders
+                        (
+                            customer_id,
+                            table_id,
+                            order_type,
+                            status,
+                            payment_status,
+                            total_amount
+                        )
+
+                        VALUES
+                        (
+                            ?,
+                            ?,
+                            ?,
+                            'pending',
+                            'unpaid',
+                            ?
+                        )";
+
+                $stmt = mysqli_prepare($conn, $sql);
+
+                mysqli_stmt_bind_param(
+                    $stmt,
+                    "iisd",
+                    $customer_id,
+                    $table_id,
+                    $order_type,
+                    $total_amount
+                );
+
+            } else {
+
+                $sql = "INSERT INTO orders
+                        (
+                            customer_id,
+                            table_id,
+                            order_type,
+                            status,
+                            payment_status,
+                            total_amount
+                        )
+
+                        VALUES
+                        (
+                            ?,
+                            NULL,
+                            ?,
+                            'pending',
+                            'unpaid',
+                            ?
+                        )";
+
+                $stmt = mysqli_prepare($conn, $sql);
+
+                mysqli_stmt_bind_param(
+                    $stmt,
+                    "isd",
+                    $customer_id,
+                    $order_type,
+                    $total_amount
+                );
+            }
+
+            mysqli_stmt_execute($stmt);
+
+            $order_id = mysqli_insert_id($conn);
+
+            /*
+             * Insert all order items
+             */
+
+            foreach ($items as $item) {
+
+                $sql = "INSERT INTO order_items
+                        (
+                            order_id,
+                            menu_item_id,
+                            quantity,
+                            unit_price,
+                            subtotal
+                        )
+
+                        VALUES (?, ?, ?, ?, ?)";
+
+                $stmt = mysqli_prepare($conn, $sql);
+
+                mysqli_stmt_bind_param(
+                    $stmt,
+                    "iiidd",
+                    $order_id,
+                    $item["menu_item_id"],
+                    $item["quantity"],
+                    $item["unit_price"],
+                    $item["subtotal"]
+                );
+
+                mysqli_stmt_execute($stmt);
+            }
+
+            /*
+             * Occupy table for dine-in
+             */
+
+            if ($order_type === "dine_in") {
+
+                $sql = "UPDATE restaurant_tables
+                        SET status = 'occupied'
+                        WHERE id = ?";
+
+                $stmt = mysqli_prepare($conn, $sql);
+
+                mysqli_stmt_bind_param(
+                    $stmt,
+                    "i",
+                    $table_id
+                );
+
+                mysqli_stmt_execute($stmt);
+            }
+
+            mysqli_commit($conn);
+
+            header("Location: view.php?id=" . $order_id);
+            exit;
+
+        } catch (Exception $error) {
+
+            mysqli_rollback($conn);
+
+            $error = $error->getMessage();
+        }
+    }
 }
 
 ?>
@@ -150,6 +340,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <body>
 
     <h1>Create Order</h1>
+
+    <?php if ($error !== "") { ?>
+
+        <p>
+            <strong>
+                <?php echo $error; ?>
+            </strong>
+        </p>
+
+    <?php } ?>
 
     <form method="POST">
 
@@ -174,33 +374,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         <br><br>
 
-
-        <label>Table</label>
-        <br>
-
-        <select name="table_id" required>
-
-            <option value="">
-                Select Table
-            </option>
-
-            <?php while ($table = mysqli_fetch_assoc($tables)) { ?>
-
-                <option value="<?php echo $table["id"]; ?>">
-                    Table <?php echo $table["table_number"]; ?>
-                </option>
-
-            <?php } ?>
-
-        </select>
-
-        <br><br>
-
-
         <label>Order Type</label>
         <br>
 
-        <select name="order_type" required>
+        <select
+            name="order_type"
+            id="orderType"
+        >
 
             <option value="dine_in">
                 Dine In
@@ -218,43 +398,88 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         <br><br>
 
+        <div id="tableField">
 
-        <label>Menu Item</label>
-        <br>
+            <label>Table</label>
+            <br>
 
-        <select name="menu_item_id" required>
+            <select name="table_id" id="tableId">
 
-            <option value="">
-                Select Menu Item
-            </option>
-
-            <?php while ($item = mysqli_fetch_assoc($menu_items)) { ?>
-
-                <option value="<?php echo $item["id"]; ?>">
-                    <?php echo $item["name"]; ?>
-                    - Rs. <?php echo $item["price"]; ?>
+                <option value="">
+                    Select Table
                 </option>
 
-            <?php } ?>
+                <?php while ($table = mysqli_fetch_assoc($tables)) { ?>
 
-        </select>
+                    <option value="<?php echo $table["id"]; ?>">
+                        Table <?php echo $table["table_number"]; ?>
+                    </option>
 
-        <br><br>
+                <?php } ?>
 
+            </select>
 
-        <label>Quantity</label>
-        <br>
+            <br><br>
 
-        <input
-            type="number"
-            name="quantity"
-            min="1"
-            value="1"
-            required
+        </div>
+
+        <h2>Order Items</h2>
+
+        <div id="orderItems">
+
+            <div class="order-item">
+
+                <label>Menu Item</label>
+                <br>
+
+                <select name="menu_item_id[]" required>
+
+                    <option value="">
+                        Select Menu Item
+                    </option>
+
+                    <?php
+                    mysqli_data_seek($menu_items, 0);
+                    ?>
+
+                    <?php while ($menu_item = mysqli_fetch_assoc($menu_items)) { ?>
+
+                        <option value="<?php echo $menu_item["id"]; ?>">
+                            <?php echo $menu_item["name"]; ?>
+                            - <?php echo $menu_item["price"]; ?>
+                        </option>
+
+                    <?php } ?>
+
+                </select>
+
+                <br>
+
+                <label>Quantity</label>
+                <br>
+
+                <input
+                    type="number"
+                    name="quantity[]"
+                    min="1"
+                    value="1"
+                    required
+                >
+
+                <br><br>
+
+            </div>
+
+        </div>
+
+        <button
+            type="button"
+            onclick="addItem()"
         >
+            Add Another Item
+        </button>
 
         <br><br>
-
 
         <button type="submit">
             Create Order
@@ -267,6 +492,64 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <a href="index.php">
         Back to Orders
     </a>
+
+    <script>
+
+        const orderType = document.getElementById("orderType");
+
+        const tableField = document.getElementById("tableField");
+
+        const tableId = document.getElementById("tableId");
+
+        function updateTableField() {
+
+            if (orderType.value === "dine_in") {
+
+                tableField.style.display = "block";
+
+                tableId.required = true;
+
+            } else {
+
+                tableField.style.display = "none";
+
+                tableId.required = false;
+
+                tableId.value = "";
+            }
+        }
+
+        orderType.addEventListener(
+            "change",
+            updateTableField
+        );
+
+        updateTableField();
+
+
+        function addItem() {
+
+            const orderItems =
+                document.getElementById("orderItems");
+
+            const firstItem =
+                document.querySelector(".order-item");
+
+            const newItem =
+                firstItem.cloneNode(true);
+
+            newItem
+                .querySelector("select")
+                .value = "";
+
+            newItem
+                .querySelector("input")
+                .value = 1;
+
+            orderItems.appendChild(newItem);
+        }
+
+    </script>
 
 </body>
 

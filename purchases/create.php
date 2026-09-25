@@ -2,7 +2,6 @@
 
 require_once "../config/database.php";
 
-
 $suppliers = mysqli_query(
     $conn,
     "SELECT id, name
@@ -10,103 +9,248 @@ $suppliers = mysqli_query(
      ORDER BY name ASC"
 );
 
-
-$materials = mysqli_query(
+$raw_materials = mysqli_query(
     $conn,
     "SELECT id, name, unit
      FROM raw_materials
      ORDER BY name ASC"
 );
 
+$error = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     $supplier_id = $_POST["supplier_id"];
-    $raw_material_id = $_POST["raw_material_id"];
-    $quantity = $_POST["quantity"];
-    $unit_price = $_POST["unit_price"];
     $payment_status = $_POST["payment_status"];
     $purchase_date = $_POST["purchase_date"];
 
+    $raw_material_ids = $_POST["raw_material_id"];
+    $quantities = $_POST["quantity"];
+    $unit_prices = $_POST["unit_price"];
 
-    $subtotal = $quantity * $unit_price;
+    if (
+        empty($raw_material_ids)
+        ||
+        empty($quantities)
+        ||
+        empty($unit_prices)
+    ) {
 
+        $error = "Please add at least one raw material.";
 
-    $sql = "INSERT INTO purchases
-            (supplier_id, total_amount, payment_status, purchase_date)
-            VALUES (?, ?, ?, ?)";
+    } elseif (
+        count($raw_material_ids) !== count($quantities)
+        ||
+        count($raw_material_ids) !== count($unit_prices)
+    ) {
 
-    $stmt = mysqli_prepare($conn, $sql);
+        $error = "Invalid purchase items.";
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        "idss",
-        $supplier_id,
-        $subtotal,
-        $payment_status,
-        $purchase_date
-    );
+    }
 
-    mysqli_stmt_execute($stmt);
+    if ($error === "") {
 
+        mysqli_begin_transaction($conn);
 
-    $purchase_id = mysqli_insert_id($conn);
+        try {
 
+            $total_amount = 0;
 
-    $sql = "INSERT INTO purchase_items
-            (purchase_id, raw_material_id, quantity, unit_price, subtotal)
-            VALUES (?, ?, ?, ?, ?)";
+            $items = [];
 
-    $stmt = mysqli_prepare($conn, $sql);
+            /*
+             * Calculate purchase items
+             */
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        "iiddi",
-        $purchase_id,
-        $raw_material_id,
-        $quantity,
-        $unit_price,
-        $subtotal
-    );
+            foreach ($raw_material_ids as $index => $raw_material_id) {
 
-    mysqli_stmt_execute($stmt);
+                $quantity = $quantities[$index];
+                $unit_price = $unit_prices[$index];
 
+                if ($quantity <= 0) {
 
-    $sql = "INSERT INTO inventory_transactions
-            (raw_material_id, type, quantity, reference_type, reference_id)
-            VALUES (?, 'purchase', ?, 'purchase', ?)";
+                    throw new Exception(
+                        "Quantity must be greater than 0."
+                    );
+                }
 
-    $stmt = mysqli_prepare($conn, $sql);
+                if ($unit_price < 0) {
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        "idi",
-        $raw_material_id,
-        $quantity,
-        $purchase_id
-    );
+                    throw new Exception(
+                        "Unit price cannot be negative."
+                    );
+                }
 
-    mysqli_stmt_execute($stmt);
+                /*
+                 * Check raw material exists
+                 */
 
+                $sql = "SELECT id
+                        FROM raw_materials
+                        WHERE id = ?";
 
-    $sql = "UPDATE raw_materials
-            SET current_stock = current_stock + ?
-            WHERE id = ?";
+                $stmt = mysqli_prepare($conn, $sql);
 
-    $stmt = mysqli_prepare($conn, $sql);
+                mysqli_stmt_bind_param(
+                    $stmt,
+                    "i",
+                    $raw_material_id
+                );
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        "di",
-        $quantity,
-        $raw_material_id
-    );
+                mysqli_stmt_execute($stmt);
 
-    mysqli_stmt_execute($stmt);
+                $result = mysqli_stmt_get_result($stmt);
 
+                $material = mysqli_fetch_assoc($result);
 
-    header("Location: index.php");
-    exit;
+                if (!$material) {
+
+                    throw new Exception(
+                        "Raw material not found."
+                    );
+                }
+
+                $subtotal = $quantity * $unit_price;
+
+                $total_amount += $subtotal;
+
+                $items[] = [
+                    "raw_material_id" => $raw_material_id,
+                    "quantity" => $quantity,
+                    "unit_price" => $unit_price,
+                    "subtotal" => $subtotal
+                ];
+            }
+
+            /*
+             * Create purchase
+             */
+
+            $sql = "INSERT INTO purchases
+                    (
+                        supplier_id,
+                        total_amount,
+                        payment_status,
+                        purchase_date
+                    )
+
+                    VALUES (?, ?, ?, ?)";
+
+            $stmt = mysqli_prepare($conn, $sql);
+
+            mysqli_stmt_bind_param(
+                $stmt,
+                "idss",
+                $supplier_id,
+                $total_amount,
+                $payment_status,
+                $purchase_date
+            );
+
+            mysqli_stmt_execute($stmt);
+
+            $purchase_id = mysqli_insert_id($conn);
+
+            /*
+             * Insert purchase items
+             */
+
+            foreach ($items as $item) {
+
+                $sql = "INSERT INTO purchase_items
+                        (
+                            purchase_id,
+                            raw_material_id,
+                            quantity,
+                            unit_price,
+                            subtotal
+                        )
+
+                        VALUES (?, ?, ?, ?, ?)";
+
+                $stmt = mysqli_prepare($conn, $sql);
+
+                mysqli_stmt_bind_param(
+                    $stmt,
+                    "iiddd",
+                    $purchase_id,
+                    $item["raw_material_id"],
+                    $item["quantity"],
+                    $item["unit_price"],
+                    $item["subtotal"]
+                );
+
+                mysqli_stmt_execute($stmt);
+
+                /*
+                 * Increase stock
+                 */
+
+                $sql = "UPDATE raw_materials
+
+                        SET current_stock =
+                            current_stock + ?
+
+                        WHERE id = ?";
+
+                $stmt = mysqli_prepare($conn, $sql);
+
+                mysqli_stmt_bind_param(
+                    $stmt,
+                    "di",
+                    $item["quantity"],
+                    $item["raw_material_id"]
+                );
+
+                mysqli_stmt_execute($stmt);
+
+                /*
+                 * Create inventory transaction
+                 */
+
+                $sql = "INSERT INTO inventory_transactions
+                        (
+                            raw_material_id,
+                            type,
+                            quantity,
+                            reference_type,
+                            reference_id
+                        )
+
+                        VALUES
+                        (
+                            ?,
+                            'purchase',
+                            ?,
+                            'purchase',
+                            ?
+                        )";
+
+                $stmt = mysqli_prepare($conn, $sql);
+
+                mysqli_stmt_bind_param(
+                    $stmt,
+                    "idi",
+                    $item["raw_material_id"],
+                    $item["quantity"],
+                    $purchase_id
+                );
+
+                mysqli_stmt_execute($stmt);
+            }
+
+            mysqli_commit($conn);
+
+            header("Location: view.php?id=" . $purchase_id);
+            exit;
+
+        } catch (Exception $exception) {
+
+            mysqli_rollback($conn);
+
+            $error = $exception->getMessage();
+        }
+    }
 }
 
 ?>
@@ -121,6 +265,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <body>
 
     <h1>Create Purchase</h1>
+
+    <?php if ($error !== "") { ?>
+
+        <p>
+            <strong>
+                <?php echo $error; ?>
+            </strong>
+        </p>
+
+    <?php } ?>
 
     <form method="POST">
 
@@ -145,62 +299,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         <br><br>
 
-
-        <label>Raw Material</label>
-        <br>
-
-        <select name="raw_material_id" required>
-
-            <option value="">
-                Select Raw Material
-            </option>
-
-            <?php while ($material = mysqli_fetch_assoc($materials)) { ?>
-
-                <option value="<?php echo $material["id"]; ?>">
-                    <?php echo $material["name"]; ?>
-                    (<?php echo $material["unit"]; ?>)
-                </option>
-
-            <?php } ?>
-
-        </select>
-
-        <br><br>
-
-
-        <label>Quantity</label>
-        <br>
-
-        <input
-            type="number"
-            name="quantity"
-            step="0.001"
-            min="0.001"
-            required
-        >
-
-        <br><br>
-
-
-        <label>Unit Price</label>
-        <br>
-
-        <input
-            type="number"
-            name="unit_price"
-            step="0.01"
-            min="0"
-            required
-        >
-
-        <br><br>
-
-
         <label>Payment Status</label>
         <br>
 
-        <select name="payment_status" required>
+        <select name="payment_status">
 
             <option value="unpaid">
                 Unpaid
@@ -218,7 +320,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         <br><br>
 
-
         <label>Purchase Date</label>
         <br>
 
@@ -230,6 +331,76 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         <br><br>
 
+        <h2>Purchase Items</h2>
+
+        <div id="purchaseItems">
+
+            <div class="purchase-item">
+
+                <label>Raw Material</label>
+                <br>
+
+                <select name="raw_material_id[]" required>
+
+                    <option value="">
+                        Select Raw Material
+                    </option>
+
+                    <?php
+                    mysqli_data_seek($raw_materials, 0);
+                    ?>
+
+                    <?php while ($material = mysqli_fetch_assoc($raw_materials)) { ?>
+
+                        <option value="<?php echo $material["id"]; ?>">
+                            <?php echo $material["name"]; ?>
+                            (<?php echo $material["unit"]; ?>)
+                        </option>
+
+                    <?php } ?>
+
+                </select>
+
+                <br>
+
+                <label>Quantity</label>
+                <br>
+
+                <input
+                    type="number"
+                    name="quantity[]"
+                    step="0.001"
+                    min="0.001"
+                    required
+                >
+
+                <br>
+
+                <label>Unit Price</label>
+                <br>
+
+                <input
+                    type="number"
+                    name="unit_price[]"
+                    step="0.01"
+                    min="0"
+                    required
+                >
+
+                <br><br>
+
+            </div>
+
+        </div>
+
+        <button
+            type="button"
+            onclick="addPurchaseItem()"
+        >
+            Add Another Item
+        </button>
+
+        <br><br>
 
         <button type="submit">
             Create Purchase
@@ -242,6 +413,34 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <a href="index.php">
         Back to Purchases
     </a>
+
+    <script>
+
+        function addPurchaseItem() {
+
+            const purchaseItems =
+                document.getElementById("purchaseItems");
+
+            const firstItem =
+                document.querySelector(".purchase-item");
+
+            const newItem =
+                firstItem.cloneNode(true);
+
+            newItem
+                .querySelector("select")
+                .value = "";
+
+            newItem
+                .querySelectorAll("input")
+                .forEach(function (input) {
+                    input.value = "";
+                });
+
+            purchaseItems.appendChild(newItem);
+        }
+
+    </script>
 
 </body>
 
