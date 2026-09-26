@@ -5,11 +5,7 @@ session_start();
 require_once "../config/database.php";
 
 $error = "";
-$success = "";
 
-if (isset($_GET["registered"]) && $_GET["registered"] === "1") {
-    $success = "Account created successfully.";
-}
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
@@ -35,7 +31,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         $error = "Your account is inactive.";
 
-    } elseif (!password_verify($password, $user["password"])) {
+    } elseif ($password !== $user["password"]) {
 
         $error = "Invalid email or password.";
 
@@ -71,19 +67,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 </p>
 
 <?php } ?>
-<?php if ($success !== "") { ?>
 
-<p id="successMessage">
-    <strong><?php echo $success; ?></strong>
-</p>
-
-<script>
-setTimeout(function () {
-    document.getElementById("successMessage").style.display = "none";
-}, 3000);
-</script>
-
-<?php } ?>
 
 <form method="POST">
 

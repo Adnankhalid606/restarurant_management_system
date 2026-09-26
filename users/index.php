@@ -1,8 +1,8 @@
 <?php
 
+require_once "../config/database.php";
 require_once "../includes/role.php";
 
-require_once "../config/database.php";
 requireRole(["admin"]);
 
 $sql = "SELECT id, name, email, role, is_active, created_at
