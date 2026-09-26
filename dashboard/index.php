@@ -74,6 +74,7 @@ require_once "../includes/auth.php";
         <li><a href="../suppliers/index.php">Suppliers</a></li>
         <li><a href="../purchases/index.php">Purchases</a></li>
         <li><a href="../expenses/index.php">Expenses</a></li>
+        <li><a href="../reports/index.php">Reports</a></li>
         <li><a href="../inventory/transactions.php">Inventory Transactions</a></li>
     </ul>
 
