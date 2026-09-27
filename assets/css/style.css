@@ -553,6 +553,137 @@ body {
     padding: 1rem 1.25rem;
 }
 
+/* ==================================================
+   Kitchen Display System (KDS) Styles
+   ================================================== */
+.kds-column {
+    background-color: #F1F5F9;
+    border: 1px solid var(--pos-border);
+    border-radius: 8px;
+    padding: 0.85rem;
+    height: 100%;
+    min-height: 480px;
+}
+
+.kds-column-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.85rem;
+    padding-bottom: 0.65rem;
+    border-bottom: 2px solid var(--pos-border);
+}
+
+.kds-ticket {
+    background-color: #FFFFFF;
+    border: 1px solid var(--pos-border);
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    margin-bottom: 0.85rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.kds-ticket:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+}
+
+.kds-ticket-header {
+    padding: 0.65rem 0.85rem;
+    border-bottom: 1px solid var(--pos-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.kds-ticket-body {
+    padding: 0.85rem;
+}
+
+.kds-item-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--pos-border);
+    border-radius: 6px;
+    background-color: #FFFFFF;
+    margin-bottom: 0.5rem;
+}
+
+.kds-qty-badge {
+    font-size: 1.2rem;
+    font-weight: 700;
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    background-color: var(--pos-brand);
+    color: #FFFFFF;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 48px;
+}
+
+.kds-food-title {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--pos-text);
+}
+
+/* Floor Plan & Table Display */
+.table-card {
+    background-color: var(--pos-surface);
+    border: 1px solid var(--pos-border);
+    border-radius: 8px;
+    padding: 1.25rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.table-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(15, 23, 42, 0.08);
+}
+
+.table-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+}
+
+.table-card.table-status-available::before {
+    background-color: var(--pos-success);
+}
+
+.table-card.table-status-occupied::before {
+    background-color: var(--pos-danger);
+}
+
+.table-card.table-status-reserved::before {
+    background-color: var(--pos-info);
+}
+
+.table-card-number {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--pos-text);
+}
+
+.table-capacity-chip {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--pos-muted);
+    background-color: #F1F5F9;
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
 /* Print Stylesheet for POS Tickets */
 @media print {
     .app-sidebar,
