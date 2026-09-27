@@ -1,10 +1,10 @@
 <?php
 
-
 require_once "../config/database.php";
 require_once "../includes/role.php";
 
 requireRole(["admin"]);
+
 // Get employees
 $sql = "
     SELECT
@@ -95,139 +95,152 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     exit;
 }
 
+$page_title = "Record Staff Salary";
+$active_menu = "salary";
+
+require_once "../includes/header.php";
+
 ?>
 
-<!DOCTYPE html>
-<html lang="en">
+<!-- Page Header Bar -->
+<div class="page-header-bar">
+    <div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+            <a href="index.php" class="text-muted small text-decoration-none">
+                <i class="bi bi-credit-card-2-front me-1"></i>Staff Salaries
+            </a>
+            <span class="text-muted small">/</span>
+            <span class="text-dark small fw-semibold">New Disbursement</span>
+        </div>
+        <h2 class="page-header-title">Record Staff Salary</h2>
+        <p class="page-header-subtitle">Log employee wage payments, advance settlements, or daily compensation</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <a href="index.php" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1 shadow-sm">
+            <i class="bi bi-arrow-left"></i>
+            <span>Back to Salaries</span>
+        </a>
+    </div>
+</div>
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Salary Entry Form Container -->
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <div class="pos-card shadow-sm">
+            <div class="pos-card-header d-flex justify-content-between align-items-center">
+                <span class="pos-card-title">
+                    <i class="bi bi-wallet2 text-primary me-2"></i>Disbursement Details
+                </span>
+                <span class="badge bg-light text-dark border">
+                    Payroll Voucher
+                </span>
+            </div>
+            <div class="pos-card-body p-4">
+                <form method="POST" action="create.php">
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-semibold text-dark">
+                                Employee Staff Member <span class="text-danger">*</span>
+                            </label>
+                            <select name="user_id" class="form-select" required>
+                                <option value="">Select Active Employee</option>
+                                <?php 
+                                mysqli_data_seek($result, 0);
+                                while ($row = mysqli_fetch_assoc($result)) { ?>
+                                    <option value="<?php echo $row["id"]; ?>">
+                                        <?php echo htmlspecialchars($row["name"]); ?> - <?php echo ucfirst($row["role"]); ?>
+                                    </option>
+                                <?php } ?>
+                            </select>
+                            <div class="form-text">Active staff members eligible for payroll.</div>
+                        </div>
 
-    <title>Add Salary</title>
-</head>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-semibold text-dark">
+                                Salary Amount <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-muted">Rs.</span>
+                                <input type="number" 
+                                       name="amount" 
+                                       step="0.01" 
+                                       min="0.01" 
+                                       class="form-control font-monospace fw-bold" 
+                                       placeholder="0.00" 
+                                       required>
+                            </div>
+                            <div class="form-text">Total net wage or disbursement amount.</div>
+                        </div>
+                    </div>
 
-<body>
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-semibold text-dark">
+                                Salary Frequency <span class="text-danger">*</span>
+                            </label>
+                            <select name="salary_type" class="form-select" required>
+                                <option value="monthly" selected>Monthly</option>
+                                <option value="daily">Daily</option>
+                            </select>
+                        </div>
 
-    <h1>Add Salary</h1>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-semibold text-dark">
+                                Disbursement Date <span class="text-danger">*</span>
+                            </label>
+                            <input type="date" 
+                                   name="salary_date" 
+                                   value="<?php echo date("Y-m-d"); ?>" 
+                                   class="form-control" 
+                                   required>
+                        </div>
 
-    <a href="index.php">Back to Salary Management</a>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-semibold text-dark">
+                                Payment Status <span class="text-danger">*</span>
+                            </label>
+                            <select name="payment_status" class="form-select" required>
+                                <option value="paid" selected>Paid (Disbursed)</option>
+                                <option value="unpaid">Unpaid (Pending)</option>
+                            </select>
+                        </div>
+                    </div>
 
-    <hr>
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold text-dark">
+                            Remarks / Description <span class="text-muted fw-normal">(Optional)</span>
+                        </label>
+                        <textarea name="description" 
+                                  rows="3" 
+                                  class="form-control" 
+                                  placeholder="e.g. Regular monthly wage, overtime compensation, incentive, or advance payout..."></textarea>
+                    </div>
 
-    <form method="POST">
+                    <!-- Accounting Guidance Note -->
+                    <div class="alert alert-info py-2 px-3 d-flex align-items-center gap-2 mb-4 border-info-subtle">
+                        <i class="bi bi-info-circle-fill text-info fs-5"></i>
+                        <span class="small text-secondary">
+                            <strong>Financial Note:</strong> Salaries marked with <strong>Paid</strong> status are automatically reconciled into Operating Payroll under the Profit &amp; Loss reports.
+                        </span>
+                    </div>
 
-        <label>
-            Employee:
-        </label>
+                    <div class="d-flex justify-content-end align-items-center gap-2 pt-2 border-top">
+                        <a href="index.php" class="btn btn-outline-secondary px-3">
+                            Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary px-4 shadow-sm d-inline-flex align-items-center gap-1">
+                            <i class="bi bi-check2-circle"></i>
+                            <span>Save Salary Record</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
-        <select name="user_id" required>
+<?php
 
-            <option value="">
-                Select Employee
-            </option>
+require_once "../includes/footer.php";
 
-            <?php while ($row = mysqli_fetch_assoc($result)) { ?>
-
-                <option value="<?php echo $row["id"]; ?>">
-
-                    <?php echo htmlspecialchars($row["name"]); ?>
-
-                    -
-                    <?php echo ucfirst($row["role"]); ?>
-
-                </option>
-
-            <?php } ?>
-
-        </select>
-
-        <br><br>
-
-        <label>
-            Amount:
-        </label>
-
-        <input
-            type="number"
-            name="amount"
-            step="0.01"
-            min="0"
-            required
-        >
-
-        <br><br>
-
-        <label>
-            Salary Type:
-        </label>
-
-        <select name="salary_type" required>
-
-            <option value="daily">
-                Daily
-            </option>
-
-            <option value="monthly">
-                Monthly
-            </option>
-
-        </select>
-
-        <br><br>
-
-        <label>
-            Salary Date:
-        </label>
-
-        <input
-            type="date"
-            name="salary_date"
-            value="<?php echo date("Y-m-d"); ?>"
-            required
-        >
-
-        <br><br>
-
-        <label>
-            Payment Status:
-        </label>
-
-        <select name="payment_status" required>
-
-            <option value="unpaid">
-                Unpaid
-            </option>
-
-            <option value="paid">
-                Paid
-            </option>
-
-        </select>
-
-        <br><br>
-
-        <label>
-            Description:
-        </label>
-
-        <br>
-
-        <textarea
-            name="description"
-            rows="4"
-            cols="40"
-            placeholder="Optional description"
-        ></textarea>
-
-        <br><br>
-
-        <button type="submit">
-            Add Salary
-        </button>
-
-    </form>
-
-</body>
-
-</html>
+?>

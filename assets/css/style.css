@@ -915,6 +915,47 @@ body {
     border: 1px solid var(--pos-border);
 }
 
+/* Salary Module Styling */
+.salary-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    background-color: #F0FDF4;
+    color: var(--pos-success);
+    font-size: 1.1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: 1px solid rgba(5, 150, 105, 0.2);
+}
+
+/* Users / Administration Module Styling */
+.user-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.user-avatar-admin {
+    background-color: #1E293B;
+    color: #FFFFFF;
+}
+.user-avatar-waiter {
+    background-color: #EFF6FF;
+    color: var(--pos-accent);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+.user-avatar-kitchen {
+    background-color: #FFFBEB;
+    color: var(--pos-warning);
+    border: 1px solid rgba(217, 119, 6, 0.2);
+}
+
 /* Print Stylesheet for POS Tickets */
 @media print {
     .app-sidebar,
