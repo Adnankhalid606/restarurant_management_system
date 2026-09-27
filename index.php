@@ -25,7 +25,7 @@ require_once "./includes/header.php";
     </div>
     <div class="d-flex align-items-center gap-2 text-muted small">
         <i class="bi bi-calendar3"></i>
-        <span><?php echo date("l, F j, Y"); ?></span>
+        <span><?php echo formatDate('now'); ?></span>
     </div>
 </div>
 

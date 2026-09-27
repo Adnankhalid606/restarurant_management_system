@@ -218,7 +218,7 @@ require_once "../includes/header.php";
                                 </td>
                                 <td>
                                     <span class="text-dark small">
-                                        <?php echo date('M d, Y', strtotime($row["salary_date"])); ?>
+                                        <?php echo formatDate($row["salary_date"]); ?>
                                     </span>
                                 </td>
                                 <td>

@@ -78,7 +78,7 @@ $is_paid = ($bill["payment_status"] === "paid");
             <?php } ?>
         </div>
         <p class="page-header-subtitle">
-            Order #<?php echo $bill["order_id"]; ?> &bull; Created on <?php echo date("l, F j, Y \\a\\t g:i A", strtotime($bill["created_at"])); ?>
+            Order #<?php echo $bill["order_id"]; ?> &bull; Created on <?php echo formatDateTime($bill["created_at"]); ?>
         </p>
     </div>
     <div class="d-flex align-items-center gap-2">
@@ -116,7 +116,7 @@ $is_paid = ($bill["payment_status"] === "paid");
                 </div>
                 <div class="text-md-end">
                     <div class="fs-5 fw-bold text-dark">INVOICE #<?php echo $bill["id"]; ?></div>
-                    <div class="text-muted small">Date: <?php echo date("Y-m-d H:i", strtotime($bill["created_at"])); ?></div>
+                    <div class="text-muted small">Date: <?php echo formatDateTime($bill["created_at"]); ?></div>
                     <div class="text-muted small">Ref Order: #<?php echo $bill["order_id"]; ?></div>
                 </div>
             </div>
@@ -151,7 +151,7 @@ $is_paid = ($bill["payment_status"] === "paid");
                             </div>
                             <?php if (!empty($bill["paid_at"])) { ?>
                                 <div class="text-muted small mt-1">
-                                    Settled: <?php echo date("M j, Y &bull; g:i A", strtotime($bill["paid_at"])); ?>
+                                    Settled: <?php echo formatDateTime($bill["paid_at"]); ?>
                                 </div>
                             <?php } ?>
                         <?php } else { ?>

@@ -187,10 +187,10 @@ require_once "../includes/header.php";
                                 </td>
                                 <td>
                                     <span class="text-dark small d-block">
-                                        <?php echo date('M d, Y', strtotime($recipe["created_at"])); ?>
+                                        <?php echo formatDate($recipe["created_at"]); ?>
                                     </span>
                                     <span class="text-muted small" style="font-size: 0.75rem;">
-                                        <?php echo date('h:i A', strtotime($recipe["created_at"])); ?>
+                                        <?php echo formatTime($recipe["created_at"]); ?>
                                     </span>
                                 </td>
                                 <td class="text-end pe-3">

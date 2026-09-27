@@ -152,10 +152,10 @@ require_once "../includes/header.php";
             <div>
                 <span class="text-muted small d-block">Created On</span>
                 <span class="fs-6 fw-bold text-dark d-block">
-                    <?php echo date('M d, Y', strtotime($recipe["created_at"])); ?>
+                    <?php echo formatDate($recipe["created_at"]); ?>
                 </span>
                 <span class="text-muted small" style="font-size: 0.75rem;">
-                    <?php echo date('h:i A', strtotime($recipe["created_at"])); ?>
+                    <?php echo formatTime($recipe["created_at"]); ?>
                 </span>
             </div>
             <div class="badge-subtle badge-status-ready p-2 rounded">

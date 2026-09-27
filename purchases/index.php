@@ -200,14 +200,14 @@ require_once "../includes/header.php";
                                                 <?php echo htmlspecialchars($p["supplier_name"] ?? "Standard Vendor"); ?>
                                             </span>
                                             <div class="text-muted small" style="font-size: 0.75rem;">
-                                                Logged <?php echo date('M d, Y', strtotime($p["created_at"])); ?>
+                                                Logged <?php echo formatDate($p["created_at"]); ?>
                                             </div>
                                         </div>
                                     </div>
                                 </td>
                                 <td>
                                     <span class="text-dark small d-block">
-                                        <?php echo !empty($p["purchase_date"]) ? date('M d, Y', strtotime($p["purchase_date"])) : "&mdash;"; ?>
+                                        <?php echo formatDate($p["purchase_date"], '&mdash;'); ?>
                                     </span>
                                 </td>
                                 <td class="text-end">

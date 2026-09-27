@@ -186,7 +186,7 @@ require_once "../includes/header.php";
                                 </td>
                                 <td>
                                     <span class="text-dark fw-semibold small d-block">
-                                        <?php echo !empty($exp["expense_date"]) ? date('M d, Y', strtotime($exp["expense_date"])) : "&mdash;"; ?>
+                                        <?php echo formatDate($exp["expense_date"], '&mdash;'); ?>
                                     </span>
                                 </td>
                                 <td>

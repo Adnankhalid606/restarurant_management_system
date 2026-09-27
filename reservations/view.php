@@ -111,7 +111,7 @@ $status_icon = match($st) {
                                 <i class="bi bi-calendar3 me-1"></i>Reservation Date
                             </span>
                             <span class="fs-5 fw-bold text-dark">
-                                <?php echo htmlspecialchars($reservation["reservation_date"], ENT_QUOTES, 'UTF-8'); ?>
+                                <?php echo formatDate($reservation["reservation_date"]); ?>
                             </span>
                         </div>
                     </div>
@@ -121,9 +121,7 @@ $status_icon = match($st) {
                                 <i class="bi bi-clock me-1"></i>Reserved Time Window
                             </span>
                             <span class="fs-5 fw-bold text-dark">
-                                <?php echo htmlspecialchars($reservation["reservation_time"], ENT_QUOTES, 'UTF-8'); ?>
-                                &ndash;
-                                <?php echo htmlspecialchars($reservation["reservation_end_time"], ENT_QUOTES, 'UTF-8'); ?>
+                                <?php echo formatTime($reservation["reservation_time"]); ?><?php echo !empty($reservation["reservation_end_time"]) ? ' &ndash; ' . formatTime($reservation["reservation_end_time"]) : ''; ?>
                             </span>
                         </div>
                     </div>
@@ -164,7 +162,7 @@ $status_icon = match($st) {
                 </div>
             </div>
             <div class="pos-card-footer bg-light px-4 py-2 border-top text-muted small d-flex justify-content-between">
-                <span><i class="bi bi-clock-history me-1"></i>Booked on: <?php echo htmlspecialchars($reservation["created_at"], ENT_QUOTES, 'UTF-8'); ?></span>
+                <span><i class="bi bi-clock-history me-1"></i>Booked on: <?php echo formatDateTime($reservation["created_at"]); ?></span>
                 <span>Reference: #<?php echo $reservation["id"]; ?></span>
             </div>
         </div>

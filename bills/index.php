@@ -189,7 +189,7 @@ require_once "../includes/header.php";
                                 </a>
                             </td>
                             <td class="text-muted small">
-                                <?php echo !empty($bill["created_at"]) ? date("M j, Y &bull; g:i A", strtotime($bill["created_at"])) : "-"; ?>
+                                <?php echo formatDateTime($bill["created_at"]); ?>
                             </td>
                             <td class="text-end text-muted">
                                 Rs. <?php echo number_format($bill["subtotal"], 2); ?>
@@ -217,7 +217,7 @@ require_once "../includes/header.php";
                             </td>
                             <td class="text-muted small">
                                 <?php if (!empty($bill["paid_at"])) { ?>
-                                    <i class="bi bi-calendar-check text-success me-1"></i><?php echo date("M j, Y &bull; g:i A", strtotime($bill["paid_at"])); ?>
+                                    <i class="bi bi-calendar-check text-success me-1"></i><?php echo formatDateTime($bill["paid_at"]); ?>
                                 <?php } else { ?>
                                     <span class="text-muted opacity-50">&ndash;</span>
                                 <?php } ?>

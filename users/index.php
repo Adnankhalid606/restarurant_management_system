@@ -244,7 +244,7 @@ require_once "../includes/header.php";
                                 </td>
                                 <td>
                                     <span class="text-dark small">
-                                        <?php echo date('M d, Y', strtotime($user["created_at"])); ?>
+                                        <?php echo formatDate($user["created_at"]); ?>
                                     </span>
                                 </td>
                                 <td class="text-end pe-3">

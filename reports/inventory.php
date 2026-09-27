@@ -47,8 +47,8 @@ require_once "../includes/header.php";
             <p class="text-muted small mb-0">Raw Materials Inventory Audit &amp; Reorder Level Report</p>
         </div>
         <div class="text-end">
-            <div class="fw-semibold">Audit Date: <?php echo date('M d, Y'); ?></div>
-            <small class="text-muted">Printed on <?php echo date('h:i A'); ?></small>
+            <div class="fw-semibold">Audit Date: <?php echo formatDate('now'); ?></div>
+            <small class="text-muted">Printed on <?php echo formatTime('now'); ?></small>
         </div>
     </div>
 </div>

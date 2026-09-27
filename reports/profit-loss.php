@@ -109,8 +109,8 @@ require_once "../includes/header.php";
             <p class="text-muted small mb-0">Consolidated Profit &amp; Loss (P&amp;L) Financial Statement</p>
         </div>
         <div class="text-end">
-            <div class="fw-semibold">Period: <?php echo htmlspecialchars($from); ?> to <?php echo htmlspecialchars($to); ?></div>
-            <small class="text-muted">Generated on <?php echo date('M d, Y h:i A'); ?></small>
+            <div class="fw-semibold">Period: <?php echo formatDate($from); ?> to <?php echo formatDate($to); ?></div>
+            <small class="text-muted">Generated on <?php echo formatDateTime('now'); ?></small>
         </div>
     </div>
 </div>
@@ -171,7 +171,7 @@ require_once "../includes/header.php";
             </div>
 
             <div class="col-12 col-md text-md-end text-muted small">
-                Statement Period: <strong><?php echo date('M d, Y', strtotime($from)); ?></strong> &mdash; <strong><?php echo date('M d, Y', strtotime($to)); ?></strong>
+                Statement Period: <strong><?php echo formatDate($from); ?></strong> &mdash; <strong><?php echo formatDate($to); ?></strong>
             </div>
         </form>
     </div>

@@ -48,7 +48,7 @@ if ($role === 'admin') {
         <!-- Live Shift Date Badge -->
         <span class="badge bg-light text-secondary border d-none d-md-inline-flex align-items-center gap-1 py-2 px-3">
             <i class="bi bi-calendar3"></i>
-            <span><?php echo date("D, M d, Y"); ?></span>
+            <span><?php echo formatDate('now'); ?></span>
         </span>
 
         <!-- Staff Identity & Role -->

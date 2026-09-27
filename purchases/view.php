@@ -165,7 +165,7 @@ require_once "../includes/header.php";
             <div>
                 <span class="text-muted small d-block">Purchase Date</span>
                 <span class="fs-6 fw-bold text-dark d-block">
-                    <?php echo !empty($purchase["purchase_date"]) ? date('M d, Y', strtotime($purchase["purchase_date"])) : "&mdash;"; ?>
+                    <?php echo formatDate($purchase["purchase_date"], '&mdash;'); ?>
                 </span>
             </div>
             <div class="badge-subtle badge-status-ready p-2 rounded">
@@ -303,13 +303,13 @@ require_once "../includes/header.php";
                 <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
                     <span class="text-muted small">Purchase Date</span>
                     <span class="text-dark small fw-semibold">
-                        <?php echo !empty($purchase["purchase_date"]) ? date('M d, Y', strtotime($purchase["purchase_date"])) : "&mdash;"; ?>
+                        <?php echo formatDate($purchase["purchase_date"], '&mdash;'); ?>
                     </span>
                 </div>
                 <div class="d-flex justify-content-between align-items-center py-2">
                     <span class="text-muted small">Recorded Timestamp</span>
                     <span class="text-muted small">
-                        <?php echo date('M d, Y h:i A', strtotime($purchase["created_at"])); ?>
+                        <?php echo formatDateTime($purchase["created_at"]); ?>
                     </span>
                 </div>
             </div>

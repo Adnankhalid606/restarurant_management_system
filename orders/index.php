@@ -194,7 +194,7 @@ require_once "../includes/header.php";
                                 </td>
                                 <td>
                                     <span class="text-muted small">
-                                        <?php echo !empty($order["created_at"]) ? date("M j, g:i A", strtotime($order["created_at"])) : "-"; ?>
+                                        <?php echo formatDateTime($order["created_at"]); ?>
                                     </span>
                                 </td>
                                 <td>

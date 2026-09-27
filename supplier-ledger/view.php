@@ -83,7 +83,7 @@ require_once "../includes/header.php";
         <div>
             <h2 class="fw-bold mb-1">RestoBar POS</h2>
             <div class="text-secondary small">Supplier Statement &amp; Accounts Payable Ledger</div>
-            <div class="text-muted small mt-1">Generated: <?php echo date("F d, Y - h:i A"); ?></div>
+            <div class="text-muted small mt-1">Generated: <?php echo formatDateTime('now'); ?></div>
         </div>
         <div class="text-end">
             <h4 class="mb-0 text-dark"><?php echo htmlspecialchars($supplier["name"]); ?></h4>
@@ -288,7 +288,7 @@ require_once "../includes/header.php";
                                 </td>
                                 <td>
                                     <span class="text-dark small d-block">
-                                        <?php echo date('M d, Y', strtotime($row["purchase_date"])); ?>
+                                        <?php echo formatDate($row["purchase_date"]); ?>
                                     </span>
                                 </td>
                                 <td>

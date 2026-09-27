@@ -218,7 +218,7 @@ require_once "../includes/header.php";
                                 <span class="text-muted small"><?php echo htmlspecialchars($tx["unit"], ENT_QUOTES, 'UTF-8'); ?></span>
                             </td>
                             <td class="text-muted small">
-                                <i class="bi bi-clock me-1"></i><?php echo date("M j, Y &bull; g:i A", strtotime($tx["created_at"])); ?>
+                                <i class="bi bi-clock me-1"></i><?php echo formatDateTime($tx["created_at"]); ?>
                             </td>
                         </tr>
                     <?php } ?>

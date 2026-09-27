@@ -481,7 +481,7 @@ require_once "../includes/header.php";
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="text-muted small">Placed Date:</span>
                             <span class="text-dark small fw-medium">
-                                <?php echo !empty($order["created_at"]) ? date("M j, Y g:i A", strtotime($order["created_at"])) : "-"; ?>
+                                <?php echo formatDateTime($order["created_at"]); ?>
                             </span>
                         </div>
                         <hr class="my-2 border-secondary-subtle">

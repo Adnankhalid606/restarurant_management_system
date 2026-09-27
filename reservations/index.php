@@ -205,10 +205,10 @@ require_once "../includes/header.php";
                             </td>
                             <td>
                                 <div class="fw-semibold text-dark">
-                                    <i class="bi bi-calendar3 me-1 text-muted"></i><?php echo htmlspecialchars($r['reservation_date'], ENT_QUOTES, 'UTF-8'); ?>
+                                    <i class="bi bi-calendar3 me-1 text-muted"></i><?php echo formatDate($r['reservation_date']); ?>
                                 </div>
                                 <div class="small text-muted">
-                                    <i class="bi bi-clock me-1"></i><?php echo htmlspecialchars($r['reservation_time'], ENT_QUOTES, 'UTF-8'); ?> &ndash; <?php echo htmlspecialchars($r['reservation_end_time'], ENT_QUOTES, 'UTF-8'); ?>
+                                    <i class="bi bi-clock me-1"></i><?php echo formatTime($r['reservation_time']); ?><?php echo !empty($r['reservation_end_time']) ? ' &ndash; ' . formatTime($r['reservation_end_time']) : ''; ?>
                                 </div>
                             </td>
                             <td>

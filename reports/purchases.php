@@ -58,8 +58,8 @@ require_once "../includes/header.php";
             <p class="text-muted small mb-0">Purchases &amp; Procurement Expenditure Report</p>
         </div>
         <div class="text-end">
-            <div class="fw-semibold">Period: <?php echo htmlspecialchars($from); ?> to <?php echo htmlspecialchars($to); ?></div>
-            <small class="text-muted">Printed on <?php echo date('M d, Y h:i A'); ?></small>
+            <div class="fw-semibold">Period: <?php echo formatDate($from); ?> to <?php echo formatDate($to); ?></div>
+            <small class="text-muted">Printed on <?php echo formatDateTime('now'); ?></small>
         </div>
     </div>
 </div>
@@ -120,7 +120,7 @@ require_once "../includes/header.php";
             </div>
 
             <div class="col-12 col-md text-md-end text-muted small">
-                Active Period: <strong><?php echo date('M d, Y', strtotime($from)); ?></strong> &mdash; <strong><?php echo date('M d, Y', strtotime($to)); ?></strong>
+                Active Period: <strong><?php echo formatDate($from); ?></strong> &mdash; <strong><?php echo formatDate($to); ?></strong>
             </div>
         </form>
     </div>
@@ -223,7 +223,7 @@ require_once "../includes/header.php";
                                 </td>
                                 <td>
                                     <span class="text-dark small d-block">
-                                        <?php echo !empty($row["purchase_date"]) ? date('M d, Y', strtotime($row["purchase_date"])) : "&mdash;"; ?>
+                                        <?php echo formatDate($row["purchase_date"], '&mdash;'); ?>
                                     </span>
                                 </td>
                                 <td>

@@ -144,7 +144,7 @@ $pay_class = match($order["payment_status"]) {
             </span>
         </div>
         <p class="page-header-subtitle">
-            Placed on <?php echo !empty($order["created_at"]) ? date("l, F j, Y \\a\\t g:i A", strtotime($order["created_at"])) : "-"; ?>
+            Placed on <?php echo formatDateTime($order["created_at"]); ?>
         </p>
     </div>
     <div class="d-flex align-items-center gap-2">
@@ -269,7 +269,7 @@ $pay_class = match($order["payment_status"]) {
                 <div class="d-flex justify-content-between align-items-center py-2">
                     <span class="text-muted small">Placed Date:</span>
                     <span class="text-dark small fw-medium">
-                        <?php echo !empty($order["created_at"]) ? date("M j, Y g:i A", strtotime($order["created_at"])) : "-"; ?>
+                        <?php echo formatDateTime($order["created_at"]); ?>
                     </span>
                 </div>
             </div>
