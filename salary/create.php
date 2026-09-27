@@ -1,12 +1,10 @@
 <?php
 
-require_once "../includes/auth.php";
+
 require_once "../config/database.php";
+require_once "../includes/role.php";
 
-if ($_SESSION["role"] !== "admin") {
-    die("Access denied.");
-}
-
+requireRole(["admin"]);
 // Get employees
 $sql = "
     SELECT

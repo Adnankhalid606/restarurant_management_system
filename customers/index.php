@@ -1,6 +1,9 @@
 <?php
 
 require_once "../config/database.php";
+require_once "../includes/role.php";
+
+requireRole(["admin", "waiter"]);
 
 $sql = "SELECT * FROM customers ORDER BY id DESC";
 
@@ -32,19 +35,19 @@ $result = mysqli_query($conn, $sql);
         <?php while ($customer = mysqli_fetch_assoc($result)) { ?>
 
             <tr>
-                <td><?php echo $customer["id"]; ?></td>
-                <td><?php echo $customer["name"]; ?></td>
-                <td><?php echo $customer["phone"]; ?></td>
-                <td><?php echo $customer["address"]; ?></td>
+                <td><?php echo htmlspecialchars($customer["id"]); ?></td>
+                <td><?php echo htmlspecialchars($customer["name"]); ?></td>
+                <td><?php echo htmlspecialchars($customer["phone"]); ?></td>
+                <td><?php echo htmlspecialchars($customer["address"]); ?></td>
 
                 <td>
-                    <a href="edit.php?id=<?php echo $customer["id"]; ?>">
+                    <a href="edit.php?id=<?php echo htmlspecialchars($customer["id"]); ?>">
                         Edit
                     </a>
 
                     |
 
-                    <a href="delete.php?id=<?php echo $customer["id"]; ?>">
+                    <a href="delete.php?id=<?php echo htmlspecialchars($customer["id"]); ?>">
                         Delete
                     </a>
                 </td>

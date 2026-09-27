@@ -1,10 +1,9 @@
 <?php
 
-require_once "../includes/auth.php";
+require_once "../includes/role.php";
 
-if ($_SESSION["role"] !== "admin") {
-    die("Access denied.");
-}
+requireRole(["admin"]);
+
 
 ?>
 
@@ -23,7 +22,7 @@ if ($_SESSION["role"] !== "admin") {
     <h1>Reports</h1>
 
     <p>
-        <a href="../dashboard/index.php">Back to Dashboard</a>
+        <a href="../index.php">Back to Dashboard</a>
     </p>
 
     <hr>

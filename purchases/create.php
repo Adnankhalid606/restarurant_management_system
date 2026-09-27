@@ -1,6 +1,9 @@
 <?php
 
 require_once "../config/database.php";
+require_once "../includes/role.php";
+
+requireRole(["admin"]);
 
 $suppliers = mysqli_query(
     $conn,
@@ -58,9 +61,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             $items = [];
 
-            /*
-             * Calculate purchase items
-             */
+            
+             //Calculate purchase items
+             
 
             foreach ($raw_material_ids as $index => $raw_material_id) {
 
@@ -81,9 +84,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     );
                 }
 
-                /*
-                 * Check raw material exists
-                 */
+                
+                 //Check raw material exists
+                 
 
                 $sql = "SELECT id
                         FROM raw_materials
@@ -122,9 +125,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 ];
             }
 
-            /*
-             * Create purchase
-             */
+            
+             //Create purchase
+             
 
             $sql = "INSERT INTO purchases
                     (
@@ -151,9 +154,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             $purchase_id = mysqli_insert_id($conn);
 
-            /*
-             * Insert purchase items
-             */
+            
+             // Insert purchase items
+             
 
             foreach ($items as $item) {
 
@@ -182,9 +185,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 mysqli_stmt_execute($stmt);
 
-                /*
-                 * Increase stock
-                 */
+                
+                 //Increase stock
+                 
 
                 $sql = "UPDATE raw_materials
 
@@ -204,9 +207,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 mysqli_stmt_execute($stmt);
 
-                /*
-                 * Create inventory transaction
-                 */
+                
+                 //Create inventory transaction
+                 
 
                 $sql = "INSERT INTO inventory_transactions
                         (

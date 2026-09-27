@@ -93,7 +93,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     $order_type = $_POST["order_type"] ?? "";
     $status = $_POST["status"] ?? "";
-    $payment_status = $_POST["payment_status"] ?? "";
+    
 
 
     // Set waiter
@@ -158,7 +158,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         "pending",
         "preparing",
         "ready",
-        "completed",
         "cancelled"
     ];
 
@@ -167,17 +166,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 
 
-    // Validate payment
-
-    $allowed_payment_statuses = [
-        "unpaid",
-        "paid"
-    ];
-
-    if (!in_array($payment_status, $allowed_payment_statuses)) {
-        die("Invalid payment status.");
-    }
-
 
     // Remove table if needed
 
@@ -185,88 +173,142 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $table_id = null;
     }
 
+    // Get old table
+
+$old_table_id = !empty($order["table_id"])
+    ? (int) $order["table_id"]
+    : null;
+
+$new_table_id = $table_id;
 
 
 
-    // Check table release
 
-    $should_release_table = (
-        $order["status"] !== "completed"
-        &&
-        $order["status"] !== "cancelled"
-        &&
-        (
-            $status === "completed"
-            ||
-            $status === "cancelled"
-        )
-    );
+
 
 
     mysqli_begin_transaction($conn);
 
-    try {
+try {
 
+    // Check new table
 
-        // Update order
+    if (
+        $new_table_id !== null &&
+        $new_table_id !== $old_table_id
+    ) {
 
-        $sql = "UPDATE orders
-                SET customer_id = ?,
-                    table_id = ?,
-                    waiter_id = ?,
-                    order_type = ?,
-                    status = ?,
-                    payment_status = ?
+        $sql = "SELECT status
+                FROM restaurant_tables
                 WHERE id = ?";
 
         $stmt = mysqli_prepare($conn, $sql);
 
         mysqli_stmt_bind_param(
             $stmt,
-            "iiisssi",
-            $customer_id,
-            $table_id,
-            $waiter_id,
-            $order_type,
-            $status,
-            $payment_status,
-            $id
+            "i",
+            $new_table_id
         );
 
         mysqli_stmt_execute($stmt);
 
+        $result = mysqli_stmt_get_result($stmt);
 
-        // Release table
+        $new_table = mysqli_fetch_assoc($result);
 
-        if ($should_release_table && $order["table_id"]) {
-
-            $sql = "UPDATE restaurant_tables
-                    SET status = 'available'
-                    WHERE id = ?";
-
-            $stmt = mysqli_prepare($conn, $sql);
-
-            mysqli_stmt_bind_param(
-                $stmt,
-                "i",
-                $order["table_id"]
-            );
-
-            mysqli_stmt_execute($stmt);
+        if (!$new_table) {
+            throw new Exception("Table not found.");
         }
 
-
-        mysqli_commit($conn);
-
-        header("Location: view.php?id=" . $id);
-        exit;
-
-    } catch (Exception $error) {
-
-        mysqli_rollback($conn);
-
-        die($error->getMessage());
+        if ($new_table["status"] !== "available") {
+            throw new Exception("Selected table is not available.");
+        }
     }
+
+
+    // Release old table
+
+    if (
+        $old_table_id !== null &&
+        $old_table_id !== $new_table_id
+    ) {
+
+        $sql = "UPDATE restaurant_tables
+                SET status = 'available'
+                WHERE id = ?";
+
+        $stmt = mysqli_prepare($conn, $sql);
+
+        mysqli_stmt_bind_param(
+            $stmt,
+            "i",
+            $old_table_id
+        );
+
+        mysqli_stmt_execute($stmt);
+    }
+
+
+    // Occupy new table
+
+    if (
+        $new_table_id !== null &&
+        $new_table_id !== $old_table_id
+    ) {
+
+        $sql = "UPDATE restaurant_tables
+                SET status = 'occupied'
+                WHERE id = ?";
+
+        $stmt = mysqli_prepare($conn, $sql);
+
+        mysqli_stmt_bind_param(
+            $stmt,
+            "i",
+            $new_table_id
+        );
+
+        mysqli_stmt_execute($stmt);
+    }
+
+
+    // Update order
+
+    $sql = "UPDATE orders
+            SET customer_id = ?,
+                table_id = ?,
+                waiter_id = ?,
+                order_type = ?,
+                status = ?
+            WHERE id = ?";
+
+    $stmt = mysqli_prepare($conn, $sql);
+
+    mysqli_stmt_bind_param(
+        $stmt,
+        "iiissi",
+        $customer_id,
+        $table_id,
+        $waiter_id,
+        $order_type,
+        $status,
+        $id
+    );
+
+    mysqli_stmt_execute($stmt);
+
+
+    mysqli_commit($conn);
+
+    header("Location: view.php?id=" . $id);
+    exit;
+
+} catch (Exception $error) {
+
+    mysqli_rollback($conn);
+
+    die($error->getMessage());
+}
 }
 
 ?>
@@ -309,7 +351,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                    }
                    ?>>
 
-                    <?php echo $customer["name"]; ?>
+                    <?php echo htmlspecialchars($customer["name"]); ?>
 
                 </option>
 
@@ -472,33 +514,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         </select>
 
         <br><br>
-
-
-        <label>
-            Payment Status
-        </label>
-
-        <br>
-
-        <select name="payment_status">
-
-            <option value="unpaid" <?php
-            if ($order["payment_status"] === "unpaid") {
-                echo "selected";
-            }
-            ?>>
-                Unpaid
-            </option>
-
-            <option value="paid" <?php
-            if ($order["payment_status"] === "paid") {
-                echo "selected";
-            }
-            ?>>
-                Paid
-            </option>
-
-        </select>
 
         <br><br>
 

@@ -6,11 +6,8 @@ require_once "../includes/role.php";
 requireRole(["admin", "waiter"]);
 
 
-/*
-|--------------------------------------------------------------------------
-| Get Orders
-|--------------------------------------------------------------------------
-*/
+
+// Get Orders
 
 $sql = "SELECT
             orders.id,
@@ -35,11 +32,7 @@ $sql = "SELECT
             ON orders.waiter_id = users.id";
 
 
-/*
-|--------------------------------------------------------------------------
-| Waiter Can Only See Their Own Orders
-|--------------------------------------------------------------------------
-*/
+// Waiter Can Only See Their Own Orders
 
 if ($_SESSION["role"] === "waiter") {
 
@@ -61,11 +54,8 @@ if ($_SESSION["role"] === "waiter") {
 
 } else {
 
-    /*
-    |--------------------------------------------------------------------------
-    | Admin Can See All Orders
-    |--------------------------------------------------------------------------
-    */
+    // Admin Can See All Orders
+   
 
     $sql .= " ORDER BY orders.id DESC";
 

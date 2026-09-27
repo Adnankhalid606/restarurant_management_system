@@ -1,12 +1,9 @@
 <?php
 
-require_once "../includes/auth.php";
 require_once "../config/database.php";
+require_once "../includes/role.php";
 
-if ($_SESSION["role"] !== "admin") {
-    die("Access denied.");
-}
-
+requireRole(["admin"]);
 $from = $_GET["from"] ?? date("Y-m-01");
 $to = $_GET["to"] ?? date("Y-m-d");
 
@@ -18,13 +15,15 @@ $sql = "
         orders.order_type,
         orders.status,
         orders.payment_status,
-        orders.total_amount
+        COALESCE(bills.total_amount, orders.total_amount) AS total_amount
     FROM orders
     LEFT JOIN customers
         ON orders.customer_id = customers.id
+    LEFT JOIN bills
+        ON orders.id = bills.order_id
     WHERE DATE(orders.created_at) BETWEEN ? AND ?
-AND orders.status = 'completed'
-ORDER BY orders.created_at DESC
+    AND orders.status = 'completed'
+    ORDER BY orders.created_at DESC
 ";
 
 $stmt = mysqli_prepare($conn, $sql);
@@ -37,6 +36,17 @@ $result = mysqli_stmt_get_result($stmt);
 
 $total_sales = 0;
 $total_orders = 0;
+
+$rows = [];
+
+while ($row = mysqli_fetch_assoc($result)) {
+
+    $rows[] = $row;
+
+    $total_orders++;
+
+    $total_sales += $row["total_amount"];
+}
 
 ?>
 
@@ -114,12 +124,7 @@ $total_orders = 0;
             <th>Total</th>
         </tr>
 
-        <?php while ($row = mysqli_fetch_assoc($result)) { ?>
-
-            <?php
-            $total_orders++;
-            $total_sales += $row["total_amount"];
-            ?>
+        <?php foreach ($rows as $row) { ?>
 
             <tr>
 

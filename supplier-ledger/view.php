@@ -1,20 +1,18 @@
 <?php
 
-require_once "../includes/auth.php";
-require_once "../config/database.php";
+require_once '../config/database.php';
+require_once '../includes/role.php';
 
-if ($_SESSION["role"] !== "admin") {
-    die("Access denied.");
+requireRole(['admin']);
+
+if (!isset($_GET['id'])) {
+    die('Supplier ID is required.');
 }
 
-if (!isset($_GET["id"])) {
-    die("Supplier ID is required.");
-}
-
-$supplier_id = (int) $_GET["id"];
+$supplier_id = (int) $_GET['id'];
 
 // Get supplier
-$sql = "
+$sql = '
     SELECT
         id,
         name,
@@ -22,21 +20,21 @@ $sql = "
         address
     FROM suppliers
     WHERE id = ?
-";
+';
 
 $stmt = mysqli_prepare($conn, $sql);
-mysqli_stmt_bind_param($stmt, "i", $supplier_id);
+mysqli_stmt_bind_param($stmt, 'i', $supplier_id);
 mysqli_stmt_execute($stmt);
 
 $result = mysqli_stmt_get_result($stmt);
 $supplier = mysqli_fetch_assoc($result);
 
 if (!$supplier) {
-    die("Supplier not found.");
+    die('Supplier not found.');
 }
 
 // Get supplier purchases
-$sql = "
+$sql = '
     SELECT
         id,
         purchase_date,
@@ -45,10 +43,10 @@ $sql = "
     FROM purchases
     WHERE supplier_id = ?
     ORDER BY purchase_date DESC
-";
+';
 
 $stmt = mysqli_prepare($conn, $sql);
-mysqli_stmt_bind_param($stmt, "i", $supplier_id);
+mysqli_stmt_bind_param($stmt, 'i', $supplier_id);
 mysqli_stmt_execute($stmt);
 
 $result = mysqli_stmt_get_result($stmt);
@@ -61,15 +59,14 @@ $total_outstanding = 0;
 
 // Calculate totals
 while ($row = mysqli_fetch_assoc($result)) {
-
     $purchases[] = $row;
 
-    $total_purchases += $row["total_amount"];
+    $total_purchases += $row['total_amount'];
 
-    if ($row["payment_status"] === "paid") {
-        $total_paid += $row["total_amount"];
+    if ($row['payment_status'] === 'paid') {
+        $total_paid += $row['total_amount'];
     } else {
-        $total_outstanding += $row["total_amount"];
+        $total_outstanding += $row['total_amount'];
     }
 }
 
@@ -94,17 +91,17 @@ while ($row = mysqli_fetch_assoc($result)) {
     <hr>
 
     <h2>
-        <?php echo htmlspecialchars($supplier["name"]); ?>
+        <?php echo htmlspecialchars($supplier['name']); ?>
     </h2>
 
     <p>
         Phone:
-        <?php echo htmlspecialchars($supplier["phone"] ?? "N/A"); ?>
+        <?php echo htmlspecialchars($supplier['phone'] ?? 'N/A'); ?>
     </p>
 
     <p>
         Address:
-        <?php echo htmlspecialchars($supplier["address"] ?? "N/A"); ?>
+        <?php echo htmlspecialchars($supplier['address'] ?? 'N/A'); ?>
     </p>
 
     <hr>
@@ -149,6 +146,7 @@ while ($row = mysqli_fetch_assoc($result)) {
                 <th>Date</th>
                 <th>Amount</th>
                 <th>Payment Status</th>
+                <th>Action</th>
             </tr>
 
             <?php foreach ($purchases as $row) { ?>
@@ -156,19 +154,36 @@ while ($row = mysqli_fetch_assoc($result)) {
                 <tr>
 
                     <td>
-                        #<?php echo $row["id"]; ?>
+                        #<?php echo $row['id']; ?>
                     </td>
 
                     <td>
-                        <?php echo $row["purchase_date"]; ?>
+                        <?php echo $row['purchase_date']; ?>
                     </td>
 
                     <td>
-                        Rs. <?php echo number_format($row["total_amount"], 2); ?>
+                        Rs. <?php echo number_format($row['total_amount'], 2); ?>
                     </td>
 
                     <td>
-                        <?php echo ucfirst($row["payment_status"]); ?>
+                        <?php echo ucfirst($row['payment_status']); ?>
+                    </td>
+
+                    <td>
+
+                        <?php if ($row['payment_status'] !== 'paid') { ?>
+
+                            <a
+                                href="../purchases/pay.php?id=<?php echo $row['id']; ?>">
+                                Pay
+                            </a>
+
+                        <?php } else { ?>
+
+                            Paid
+
+                        <?php } ?>
+
                     </td>
 
                 </tr>

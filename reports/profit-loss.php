@@ -1,11 +1,9 @@
 <?php
 
-require_once "../includes/auth.php";
 require_once "../config/database.php";
+require_once "../includes/role.php";
 
-if ($_SESSION["role"] !== "admin") {
-    die("Access denied.");
-}
+requireRole(["admin"]);
 
 $from = $_GET["from"] ?? date("Y-m-01");
 $to = $_GET["to"] ?? date("Y-m-d");
@@ -67,8 +65,31 @@ $expense_row = mysqli_fetch_assoc($expense_result);
 
 $total_expenses = $expense_row["total_expenses"];
 
+$salary_sql = "
+    SELECT COALESCE(SUM(amount), 0) AS total_salaries
+    FROM salaries
+    WHERE payment_status = 'paid'
+    AND salary_date BETWEEN ? AND ?
+";
 
-$net_profit = $total_sales - $total_purchases - $total_expenses;
+$salary_stmt = mysqli_prepare($conn, $salary_sql);
+
+mysqli_stmt_bind_param(
+    $salary_stmt,
+    "ss",
+    $from,
+    $to
+);
+
+mysqli_stmt_execute($salary_stmt);
+
+$salary_result = mysqli_stmt_get_result($salary_stmt);
+
+$salary_row = mysqli_fetch_assoc($salary_result);
+
+$total_salaries = $salary_row["total_salaries"];
+
+$net_profit = $total_sales - $total_purchases - $total_expenses - $total_salaries;
 
 ?>
 
@@ -101,8 +122,7 @@ $net_profit = $total_sales - $total_purchases - $total_expenses;
             id="from"
             name="from"
             value="<?php echo htmlspecialchars($from); ?>"
-            required
-        >
+            required>
 
         <label for="to">To:</label>
 
@@ -111,8 +131,7 @@ $net_profit = $total_sales - $total_purchases - $total_expenses;
             id="to"
             name="to"
             value="<?php echo htmlspecialchars($to); ?>"
-            required
-        >
+            required>
 
         <button type="submit">Generate Report</button>
 
@@ -135,6 +154,13 @@ $net_profit = $total_sales - $total_purchases - $total_expenses;
     <p>
         Total Expenses:
         <strong>Rs. <?php echo number_format($total_expenses, 2); ?></strong>
+    </p>
+
+    <hr>
+    
+    <p>
+        Total Salaries:
+        <strong>Rs. <?php echo number_format($total_salaries, 2); ?></strong>
     </p>
 
     <hr>

@@ -1,11 +1,9 @@
 <?php
 
-require_once "../includes/auth.php";
 require_once "../config/database.php";
+require_once "../includes/role.php";
 
-if ($_SESSION["role"] !== "admin") {
-    die("Access denied.");
-}
+requireRole(["admin"]);
 
 $from = $_GET["from"] ?? date("Y-m-01");
 $to = $_GET["to"] ?? date("Y-m-d");
@@ -34,6 +32,17 @@ $result = mysqli_stmt_get_result($stmt);
 
 $total_purchases = 0;
 $total_amount = 0;
+
+$rows = [];
+
+while ($row = mysqli_fetch_assoc($result)) {
+
+    $rows[] = $row;
+
+    $total_purchases++;
+
+    $total_amount += $row["total_amount"];
+}
 
 ?>
 
@@ -66,8 +75,7 @@ $total_amount = 0;
             id="from"
             name="from"
             value="<?php echo htmlspecialchars($from); ?>"
-            required
-        >
+            required>
 
         <label for="to">To:</label>
 
@@ -76,8 +84,7 @@ $total_amount = 0;
             id="to"
             name="to"
             value="<?php echo htmlspecialchars($to); ?>"
-            required
-        >
+            required>
 
         <button type="submit">Generate Report</button>
 
@@ -111,12 +118,7 @@ $total_amount = 0;
             <th>Total Amount</th>
         </tr>
 
-        <?php while ($row = mysqli_fetch_assoc($result)) { ?>
-
-            <?php
-            $total_purchases++;
-            $total_amount += $row["total_amount"];
-            ?>
+        <?php foreach ($rows as $row) { ?>
 
             <tr>
 

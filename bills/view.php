@@ -1,6 +1,9 @@
 <?php
 
 require_once "../config/database.php";
+require_once "../includes/role.php";
+
+requireRole(["admin", "waiter"]);
 
 $id = $_GET["id"];
 
@@ -180,11 +183,6 @@ $items = mysqli_stmt_get_result($stmt);
 
 <?php } ?>
 
-<a href="edit.php?id=<?php echo $bill["id"]; ?>">
-    Edit Bill
-</a>
-
-<br><br>
 
 <a href="index.php">
     Back to Bills

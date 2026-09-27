@@ -1,37 +1,64 @@
 <?php
 
 require_once "../config/database.php";
+require_once "../includes/role.php";
+
+requireRole(["admin"]);
 
 $id = $_GET["id"];
 
 
-$sql = "DELETE FROM recipe_items
-        WHERE recipe_id = ?";
+mysqli_begin_transaction($conn);
 
-$stmt = mysqli_prepare($conn, $sql);
+try {
 
-mysqli_stmt_bind_param(
-    $stmt,
-    "i",
-    $id
-);
+    // Delete recipe items
 
-mysqli_stmt_execute($stmt);
+    $sql = "DELETE FROM recipe_items
+            WHERE recipe_id = ?";
 
+    $stmt = mysqli_prepare($conn, $sql);
 
-$sql = "DELETE FROM recipes
-        WHERE id = ?";
+    mysqli_stmt_bind_param(
+        $stmt,
+        "i",
+        $id
+    );
 
-$stmt = mysqli_prepare($conn, $sql);
-
-mysqli_stmt_bind_param(
-    $stmt,
-    "i",
-    $id
-);
-
-mysqli_stmt_execute($stmt);
+    if (!mysqli_stmt_execute($stmt)) {
+        throw new Exception("Failed to delete recipe ingredients.");
+    }
 
 
-header("Location: index.php");
-exit;
+    // Delete recipe
+
+    $sql = "DELETE FROM recipes
+            WHERE id = ?";
+
+    $stmt = mysqli_prepare($conn, $sql);
+
+    mysqli_stmt_bind_param(
+        $stmt,
+        "i",
+        $id
+    );
+
+    if (!mysqli_stmt_execute($stmt)) {
+        throw new Exception("Failed to delete recipe.");
+    }
+
+
+    // Everything successful
+
+    mysqli_commit($conn);
+
+
+    header("Location: index.php");
+    exit;
+
+} catch (Exception $error) {
+
+    mysqli_rollback($conn);
+
+    die($error->getMessage());
+}

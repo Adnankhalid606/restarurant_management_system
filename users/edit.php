@@ -139,7 +139,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <label>Name</label>
         <br>
 
-        <input type="text" name="name" value="<?php echo $user["name"]; ?>" required>
+        <input type="text" name="name" value="<?php echo htmlspecialchars($user["name"]); ?>" required>
 
         <br><br>
 
@@ -147,7 +147,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <label>Email</label>
         <br>
 
-        <input type="email" name="email" value="<?php echo $user["email"]; ?>" required>
+        <input type="email" name="email" value="<?php echo htmlspecialchars($user["email"]); ?>" required>
 
         <br><br>
 

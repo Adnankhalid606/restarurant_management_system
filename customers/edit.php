@@ -1,6 +1,9 @@
 <?php
 
 require_once "../config/database.php";
+require_once "../includes/role.php";
+
+requireRole(["admin", "waiter"]);
 
 $id = $_GET["id"];
 
@@ -66,7 +69,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <input
             type="text"
             name="name"
-            value="<?php echo $customer["name"]; ?>"
+            value="<?php echo htmlspecialchars($customer["name"]); ?>"
             required
         >
 
@@ -77,7 +80,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <input
             type="text"
             name="phone"
-            value="<?php echo $customer["phone"]; ?>"
+            value="<?php echo htmlspecialchars($customer["phone"]); ?>"
         >
 
         <br><br>
@@ -87,7 +90,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <input
             type="text"
             name="address"
-            value="<?php echo $customer["address"]; ?>"
+            value="<?php echo htmlspecialchars($customer["address"]); ?>"
         >
 
         <br><br>

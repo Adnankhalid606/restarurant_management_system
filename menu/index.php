@@ -1,6 +1,9 @@
 <?php
 
 require_once "../config/database.php";
+require_once "../includes/role.php";
+
+requireRole(["admin", "waiter", "kitchen"]);
 
 $sql = "SELECT * FROM menu_items ORDER BY id DESC";
 

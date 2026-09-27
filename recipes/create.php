@@ -1,7 +1,9 @@
 <?php
 
 require_once "../config/database.php";
+require_once "../includes/role.php";
 
+requireRole(["admin"]);
 
 $menu_items = mysqli_query(
     $conn,
@@ -23,54 +25,76 @@ $materials = mysqli_query(
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     $menu_item_id = $_POST["menu_item_id"];
-
     $raw_material_ids = $_POST["raw_material_id"];
     $quantities = $_POST["quantity"];
 
 
-    $sql = "INSERT INTO recipes
-            (menu_item_id)
-            VALUES (?)";
+    mysqli_begin_transaction($conn);
 
-    $stmt = mysqli_prepare($conn, $sql);
+    try {
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        "i",
-        $menu_item_id
-    );
+        // Create recipe
 
-    mysqli_stmt_execute($stmt);
-
-    $recipe_id = mysqli_insert_id($conn);
-
-
-    for ($i = 0; $i < count($raw_material_ids); $i++) {
-
-        $raw_material_id = $raw_material_ids[$i];
-        $quantity = $quantities[$i];
-
-
-        $sql = "INSERT INTO recipe_items
-                (recipe_id, raw_material_id, quantity)
-                VALUES (?, ?, ?)";
+        $sql = "INSERT INTO recipes
+                (menu_item_id)
+                VALUES (?)";
 
         $stmt = mysqli_prepare($conn, $sql);
 
         mysqli_stmt_bind_param(
             $stmt,
-            "iid",
-            $recipe_id,
-            $raw_material_id,
-            $quantity
+            "i",
+            $menu_item_id
         );
 
-        mysqli_stmt_execute($stmt);
+        if (!mysqli_stmt_execute($stmt)) {
+            throw new Exception("Failed to create recipe.");
+        }
+
+        $recipe_id = mysqli_insert_id($conn);
+
+
+        // Create recipe items
+
+        for ($i = 0; $i < count($raw_material_ids); $i++) {
+
+            $raw_material_id = $raw_material_ids[$i];
+            $quantity = $quantities[$i];
+
+
+            $sql = "INSERT INTO recipe_items
+                    (recipe_id, raw_material_id, quantity)
+                    VALUES (?, ?, ?)";
+
+            $stmt = mysqli_prepare($conn, $sql);
+
+            mysqli_stmt_bind_param(
+                $stmt,
+                "iid",
+                $recipe_id,
+                $raw_material_id,
+                $quantity
+            );
+
+            if (!mysqli_stmt_execute($stmt)) {
+                throw new Exception("Failed to add recipe ingredient.");
+            }
+        }
+
+
+        // Everything successful
+
+        mysqli_commit($conn);
+
+
+        header("Location: view.php?id=" . $recipe_id);
+        exit;
+    } catch (Exception $error) {
+
+        mysqli_rollback($conn);
+
+        die($error->getMessage());
     }
-
-
-    header("Location: view.php?id=" . $recipe_id);
-    exit;
 }
 
 ?>
@@ -153,8 +177,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     step="0.001"
                     min="0.001"
                     placeholder="Quantity"
-                    required
-                >
+                    required>
 
             </div>
 
@@ -165,8 +188,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         <button
             type="button"
-            onclick="addIngredient()"
-        >
+            onclick="addIngredient()">
             Add Ingredient
         </button>
 
@@ -189,7 +211,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
 
     <script>
-
         function addIngredient() {
 
             const ingredients = document.getElementById("ingredients");
@@ -206,7 +227,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             ingredients.appendChild(newRow);
         }
-
     </script>
 
 </body>

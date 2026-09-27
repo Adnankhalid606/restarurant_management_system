@@ -1,6 +1,9 @@
 <?php
 
 require_once "../config/database.php";
+require_once "../includes/role.php";
+
+requireRole(["admin", "waiter"]);
 
 $sql = "SELECT
             orders.id,
@@ -13,9 +16,9 @@ $sql = "SELECT
         LEFT JOIN bills
             ON orders.id = bills.order_id
 
-        WHERE bills.id IS NULL
+       WHERE bills.id IS NULL
 
-        AND orders.status != 'cancelled'
+        AND orders.status IN ('ready', 'completed')
 
         ORDER BY orders.id DESC";
 
@@ -54,7 +57,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!$order) {
 
         $error = "Order not found.";
-
     } else {
 
         $subtotal = $order["total_amount"];
@@ -66,17 +68,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         if ($discount < 0) {
 
             $error = "Discount cannot be negative.";
-
         } elseif ($discount > $subtotal) {
 
             $error = "Discount cannot be greater than subtotal.";
-
         } elseif ($tax < 0) {
 
             $error = "Tax cannot be negative.";
-
         }
-
     }
 
     if ($error === "") {
@@ -189,8 +187,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             step="0.01"
             min="0"
             value="0"
-            required
-        >
+            required>
 
         <br><br>
 
@@ -203,8 +200,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             step="0.01"
             min="0"
             value="0"
-            required
-        >
+            required>
 
         <br><br>
 

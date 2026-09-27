@@ -1,7 +1,9 @@
 <?php
 
 require_once "../config/database.php";
+require_once "../includes/role.php";
 
+requireRole(["admin"]);
 
 $materials = mysqli_query(
     $conn,
@@ -18,51 +20,76 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $quantity = $_POST["quantity"];
 
 
-    $sql = "INSERT INTO inventory_transactions
-            (raw_material_id, type, quantity)
-            VALUES (?, ?, ?)";
+    mysqli_begin_transaction($conn);
 
-    $stmt = mysqli_prepare($conn, $sql);
+    try {
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        "isd",
-        $raw_material_id,
-        $type,
-        $quantity
-    );
+        // Create inventory transaction
 
-    mysqli_stmt_execute($stmt);
+        $sql = "INSERT INTO inventory_transactions
+                (raw_material_id, type, quantity)
+                VALUES (?, ?, ?)";
+
+        $stmt = mysqli_prepare($conn, $sql);
+
+        mysqli_stmt_bind_param(
+            $stmt,
+            "isd",
+            $raw_material_id,
+            $type,
+            $quantity
+        );
+
+        if (!mysqli_stmt_execute($stmt)) {
+            throw new Exception("Failed to create inventory transaction.");
+        }
 
 
-    if ($type === "purchase") {
+        // Update stock
 
-        $sql = "UPDATE raw_materials
-                SET current_stock = current_stock + ?
-                WHERE id = ?";
+        if (
+            $type === "purchase" ||
+            $type === "adjustment_in"
+        ) {
 
-    } else {
+            $sql = "UPDATE raw_materials
+                    SET current_stock = current_stock + ?
+                    WHERE id = ?";
+        } else {
 
-        $sql = "UPDATE raw_materials
-                SET current_stock = current_stock - ?
-                WHERE id = ?";
+            $sql = "UPDATE raw_materials
+                    SET current_stock = current_stock - ?
+                    WHERE id = ?";
+        }
+
+
+        $stmt = mysqli_prepare($conn, $sql);
+
+        mysqli_stmt_bind_param(
+            $stmt,
+            "di",
+            $quantity,
+            $raw_material_id
+        );
+
+        if (!mysqli_stmt_execute($stmt)) {
+            throw new Exception("Failed to update stock.");
+        }
+
+
+        // Everything successful
+
+        mysqli_commit($conn);
+
+
+        header("Location: materials.php");
+        exit;
+    } catch (Exception $error) {
+
+        mysqli_rollback($conn);
+
+        die($error->getMessage());
     }
-
-
-    $stmt = mysqli_prepare($conn, $sql);
-
-    mysqli_stmt_bind_param(
-        $stmt,
-        "di",
-        $quantity,
-        $raw_material_id
-    );
-
-    mysqli_stmt_execute($stmt);
-
-
-    header("Location: materials.php");
-    exit;
 }
 
 ?>
@@ -121,8 +148,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 Consumption
             </option>
 
-            <option value="adjustment">
-                Adjustment
+            <option value="adjustment_in">
+                Adjustment In
+            </option>
+
+            <option value="adjustment_out">
+                Adjustment Out
             </option>
 
         </select>
@@ -138,8 +169,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             name="quantity"
             step="0.001"
             min="0.001"
-            required
-        >
+            required>
 
         <br><br>
 

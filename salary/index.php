@@ -1,11 +1,9 @@
 <?php
 
-require_once "../includes/auth.php";
 require_once "../config/database.php";
+require_once "../includes/role.php";
 
-if ($_SESSION["role"] !== "admin") {
-    die("Access denied.");
-}
+requireRole(["admin"]);
 
 // Get salaries
 $sql = "
@@ -41,7 +39,7 @@ $result = mysqli_query($conn, $sql);
 
     <h1>Salary Management</h1>
 
-    <a href="../dashboard/index.php">Back to Dashboard</a>
+    <a href="../index.php">Back to Dashboard</a>
 
     |
 

@@ -5,7 +5,10 @@ session_start();
 require_once "../config/database.php";
 
 $error = "";
-
+if (isset($_SESSION["user_id"])) {
+    header("Location: ../index.php");
+    exit;
+}
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
@@ -37,12 +40,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     } else {
 
+        session_regenerate_id(true);
+
         $_SESSION["user_id"] = $user["id"];
         $_SESSION["user_name"] = $user["name"];
         $_SESSION["user_email"] = $user["email"];
         $_SESSION["role"] = $user["role"];
 
-        header("Location: ../dashboard/index.php");
+        header("Location: ../index.php");
         exit;
     }
 }

@@ -1,11 +1,9 @@
 <?php
 
-require_once "../includes/auth.php";
 require_once "../config/database.php";
+require_once "../includes/role.php";
 
-if ($_SESSION["role"] !== "admin") {
-    die("Access denied.");
-}
+requireRole(["admin"]);
 
 if (!isset($_GET["id"])) {
     die("Customer ID is required.");
@@ -38,15 +36,17 @@ if (!$customer) {
 // Get customer orders
 $sql = "
     SELECT
-        id,
-        created_at,
-        order_type,
-        total_amount,
-        payment_status
+        orders.id,
+        orders.created_at,
+        orders.order_type,
+        COALESCE(bills.total_amount, orders.total_amount) AS total_amount,
+        orders.payment_status
     FROM orders
-    WHERE customer_id = ?
-    AND status = 'completed'
-    ORDER BY created_at DESC
+    LEFT JOIN bills
+        ON orders.id = bills.order_id
+    WHERE orders.customer_id = ?
+    AND orders.status = 'completed'
+    ORDER BY orders.created_at DESC
 ";
 
 $stmt = mysqli_prepare($conn, $sql);

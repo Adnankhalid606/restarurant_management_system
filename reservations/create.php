@@ -1,6 +1,9 @@
 <?php
 
 require_once "../config/database.php";
+require_once "../includes/role.php";
+
+requireRole(["admin", "waiter"]);
 
 $customers = mysqli_query(
     $conn,
@@ -27,44 +30,46 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $reservation_end_time = $_POST["reservation_end_time"];
     $guests = $_POST["guests"];
     $status = $_POST["status"];
+    if ($reservation_end_time <= $reservation_time) {
 
-    /*
-     * Check table capacity
-     */
+        $error = "End time must be after start time.";
+    }
+    if ($error === "") {
 
-    $sql = "SELECT capacity
+        //Check table capacity
+
+
+        $sql = "SELECT capacity
             FROM restaurant_tables
             WHERE id = ?";
 
-    $stmt = mysqli_prepare($conn, $sql);
+        $stmt = mysqli_prepare($conn, $sql);
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        "i",
-        $table_id
-    );
+        mysqli_stmt_bind_param(
+            $stmt,
+            "i",
+            $table_id
+        );
 
-    mysqli_stmt_execute($stmt);
+        mysqli_stmt_execute($stmt);
 
-    $result = mysqli_stmt_get_result($stmt);
+        $result = mysqli_stmt_get_result($stmt);
 
-    $table = mysqli_fetch_assoc($result);
+        $table = mysqli_fetch_assoc($result);
 
-    if (!$table) {
-        die("Table not found.");
-    }
+        if (!$table) {
+            die("Table not found.");
+        }
 
-    if ($guests > $table["capacity"]) {
+        if ($guests > $table["capacity"]) {
 
-        $error = "Number of guests is greater than table capacity.";
+            $error = "Number of guests is greater than table capacity.";
+        } else {
 
-    } else {
+            //Check overlapping reservation
 
-        /*
-         * Check overlapping reservation
-         */
 
-        $sql = "SELECT id
+            $sql = "SELECT id
                 FROM reservations
 
                 WHERE table_id = ?
@@ -77,32 +82,29 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 AND reservation_end_time > ?";
 
-        $stmt = mysqli_prepare($conn, $sql);
+            $stmt = mysqli_prepare($conn, $sql);
 
-        mysqli_stmt_bind_param(
-            $stmt,
-            "isss",
-            $table_id,
-            $reservation_date,
-            $reservation_end_time,
-            $reservation_time
-        );
+            mysqli_stmt_bind_param(
+                $stmt,
+                "isss",
+                $table_id,
+                $reservation_date,
+                $reservation_end_time,
+                $reservation_time
+            );
 
-        mysqli_stmt_execute($stmt);
+            mysqli_stmt_execute($stmt);
 
-        $result = mysqli_stmt_get_result($stmt);
+            $result = mysqli_stmt_get_result($stmt);
 
-        if (mysqli_num_rows($result) > 0) {
+            if (mysqli_num_rows($result) > 0) {
 
-            $error = "This table is already reserved during this time.";
+                $error = "This table is already reserved during this time.";
+            } else {
 
-        } else {
+                //Create reservation
 
-            /*
-             * Create reservation
-             */
-
-            $sql = "INSERT INTO reservations
+                $sql = "INSERT INTO reservations
                     (
                         customer_id,
                         table_id,
@@ -115,28 +117,28 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                     VALUES (?, ?, ?, ?, ?, ?, ?)";
 
-            $stmt = mysqli_prepare($conn, $sql);
+                $stmt = mysqli_prepare($conn, $sql);
 
-            mysqli_stmt_bind_param(
-                $stmt,
-                "iisssis",
-                $customer_id,
-                $table_id,
-                $reservation_date,
-                $reservation_time,
-                $reservation_end_time,
-                $guests,
-                $status
-            );
+                mysqli_stmt_bind_param(
+                    $stmt,
+                    "iisssis",
+                    $customer_id,
+                    $table_id,
+                    $reservation_date,
+                    $reservation_time,
+                    $reservation_end_time,
+                    $guests,
+                    $status
+                );
 
-            mysqli_stmt_execute($stmt);
+                mysqli_stmt_execute($stmt);
 
-            header("Location: index.php");
-            exit;
+                header("Location: index.php");
+                exit;
+            }
         }
     }
 }
-
 ?>
 
 <!DOCTYPE html>
@@ -174,7 +176,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <?php while ($customer = mysqli_fetch_assoc($customers)) { ?>
 
                 <option value="<?php echo $customer["id"]; ?>">
-                    <?php echo $customer["name"]; ?>
+                    <?php echo htmlspecialchars($customer["name"]); ?>
                 </option>
 
             <?php } ?>
@@ -211,8 +213,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <input
             type="date"
             name="reservation_date"
-            required
-        >
+            required>
 
         <br><br>
 
@@ -222,8 +223,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <input
             type="time"
             name="reservation_time"
-            required
-        >
+            required>
 
         <br><br>
 
@@ -233,8 +233,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <input
             type="time"
             name="reservation_end_time"
-            required
-        >
+            required>
 
         <br><br>
 
@@ -245,8 +244,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             type="number"
             name="guests"
             min="1"
-            required
-        >
+            required>
 
         <br><br>
 

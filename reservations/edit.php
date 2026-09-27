@@ -1,6 +1,9 @@
 <?php
 
 require_once "../config/database.php";
+require_once "../includes/role.php";
+
+requireRole(["admin", "waiter"]);
 
 $id = $_GET["id"];
 
@@ -217,7 +220,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     }
                     ?>
                 >
-                    <?php echo $customer["name"]; ?>
+                    <?php echo htmlspecialchars($customer["name"]); ?>
                 </option>
 
             <?php } ?>

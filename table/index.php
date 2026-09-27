@@ -1,6 +1,9 @@
 <?php
 
 require_once "../config/database.php";
+require_once "../includes/role.php";
+
+requireRole(["admin", "waiter", "kitchen"]);
 
 $sql = "SELECT * FROM restaurant_tables ORDER BY table_number ASC";
 

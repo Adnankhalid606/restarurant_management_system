@@ -49,15 +49,15 @@ $result = mysqli_query($conn, $sql);
     </td>
 
     <td>
-        <?php echo $user["name"]; ?>
+        <?php echo htmlspecialchars($user["name"]); ?>
     </td>
 
     <td>
-        <?php echo $user["email"]; ?>
+        <?php echo htmlspecialchars($user["email"]); ?>
     </td>
 
     <td>
-        <?php echo $user["role"]; ?>
+        <?php echo htmlspecialchars($user["role"]); ?>
     </td>
 
     <td>
@@ -90,7 +90,7 @@ $result = mysqli_query($conn, $sql);
 
 <br>
 
-<a href="../dashboard/index.php">
+<a href="../index.php">
     Back to Dashboard
 </a>
 
