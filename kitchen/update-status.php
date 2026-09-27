@@ -384,52 +384,73 @@ $status_class = match($order["status"]) {
                         </span>
                     </div>
                     <div class="text-end text-muted small">
-                        <i class="bi bi-clock-history me-1"></i>Awaiting Next Step
+                        <?php if ($order['status'] === 'completed') { ?>
+                            <i class="bi bi-check2-circle text-success me-1"></i>Completed Workflow
+                        <?php } else { ?>
+                            <i class="bi bi-clock-history me-1"></i>Awaiting Next Step
+                        <?php } ?>
                     </div>
                 </div>
 
-                <form method="POST">
-                    <div class="mb-3">
-                        <label for="statusSelect" class="form-label pos-form-label">Next Workflow Action <span class="text-danger">*</span></label>
-                        <select name="status" id="statusSelect" class="form-select pos-form-control py-2 fs-6" required>
-                            <option value="">-- Choose New Status --</option>
-                            <?php if ($order['status'] === 'pending') { ?>
-                                <option value="preparing">Start Preparing (Move to Active Cooking)</option>
-                                <option value="cancelled">Cancel Order (Release Table)</option>
-                            <?php } elseif ($order['status'] === 'preparing') { ?>
-                                <option value="ready">Mark as Ready (Food Plated / Expedited)</option>
-                                <option value="cancelled">Cancel Order (Release Table)</option>
-                            <?php } elseif ($order['status'] === 'ready') { ?>
-                                <option value="completed">Complete Order (Finalize Ticket, Deduct Stock &amp; Release Table)</option>
-                                <option value="cancelled">Cancel Order (Release Table)</option>
-                            <?php } ?>
-                        </select>
+                <?php if ($order['status'] === 'completed') { ?>
+                    <div class="alert alert-success p-3 border-success-subtle mb-4">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <i class="bi bi-check-circle-fill text-success fs-5"></i>
+                            <h6 class="mb-0 fw-bold text-dark">Order Already Completed</h6>
+                        </div>
+                        <p class="small text-secondary mb-0">
+                            This order has completed the kitchen workflow. No further status changes are available.
+                        </p>
                     </div>
 
-                    <?php if ($order['status'] === 'ready') { ?>
-                        <div class="alert alert-warning py-2 px-3 small d-flex align-items-center mb-4 border-warning-subtle">
-                            <i class="bi bi-exclamation-triangle-fill text-warning me-2 fs-5"></i>
-                            <div>
-                                Advancing to <strong>Completed</strong> will automatically verify and deduct raw materials from inventory according to recipes.
-                            </div>
-                        </div>
-                    <?php } else { ?>
-                        <div class="alert alert-light border py-2 px-3 small text-muted mb-4 d-flex align-items-center gap-2">
-                            <i class="bi bi-info-circle text-primary fs-5"></i>
-                            <div>
-                                Orders progress sequentially: <strong>Pending &rarr; Preparing &rarr; Ready &rarr; Completed</strong>.
-                            </div>
-                        </div>
-                    <?php } ?>
-
-                    <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm mb-2">
-                        <i class="bi bi-check-circle"></i>
-                        <span>Confirm &amp; Update Status</span>
-                    </button>
-                    <a href="view.php?id=<?php echo $id; ?>" class="btn btn-outline-secondary w-100 py-2">
-                        Cancel
+                    <a href="view.php?id=<?php echo $id; ?>" class="btn btn-outline-secondary w-100 py-2 d-inline-flex align-items-center justify-content-center gap-1">
+                        <i class="bi bi-arrow-left"></i>
+                        <span>Back to Ticket</span>
                     </a>
-                </form>
+                <?php } else { ?>
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="statusSelect" class="form-label pos-form-label">Next Workflow Action <span class="text-danger">*</span></label>
+                            <select name="status" id="statusSelect" class="form-select pos-form-control py-2 fs-6" required>
+                                <option value="">-- Choose New Status --</option>
+                                <?php if ($order['status'] === 'pending') { ?>
+                                    <option value="preparing">Start Preparing (Move to Active Cooking)</option>
+                                    <option value="cancelled">Cancel Order (Release Table)</option>
+                                <?php } elseif ($order['status'] === 'preparing') { ?>
+                                    <option value="ready">Mark as Ready (Food Plated / Expedited)</option>
+                                    <option value="cancelled">Cancel Order (Release Table)</option>
+                                <?php } elseif ($order['status'] === 'ready') { ?>
+                                    <option value="completed">Complete Order (Finalize Ticket, Deduct Stock &amp; Release Table)</option>
+                                    <option value="cancelled">Cancel Order (Release Table)</option>
+                                <?php } ?>
+                            </select>
+                        </div>
+
+                        <?php if ($order['status'] === 'ready') { ?>
+                            <div class="alert alert-warning py-2 px-3 small d-flex align-items-center mb-4 border-warning-subtle">
+                                <i class="bi bi-exclamation-triangle-fill text-warning me-2 fs-5"></i>
+                                <div>
+                                    Advancing to <strong>Completed</strong> will automatically verify and deduct raw materials from inventory according to recipes.
+                                </div>
+                            </div>
+                        <?php } else { ?>
+                            <div class="alert alert-light border py-2 px-3 small text-muted mb-4 d-flex align-items-center gap-2">
+                                <i class="bi bi-info-circle text-primary fs-5"></i>
+                                <div>
+                                    Orders progress sequentially: <strong>Pending &rarr; Preparing &rarr; Ready &rarr; Completed</strong>.
+                                </div>
+                            </div>
+                        <?php } ?>
+
+                        <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm mb-2">
+                            <i class="bi bi-check-circle"></i>
+                            <span>Confirm &amp; Update Status</span>
+                        </button>
+                        <a href="view.php?id=<?php echo $id; ?>" class="btn btn-outline-secondary w-100 py-2">
+                            Cancel
+                        </a>
+                    </form>
+                <?php } ?>
             </div>
         </div>
     </div>

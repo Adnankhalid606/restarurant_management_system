@@ -122,10 +122,12 @@ $status_class = match($order["status"]) {
             <i class="bi bi-arrow-left"></i>
             <span>Back to Kitchen Queue</span>
         </a>
-        <a href="update-status.php?id=<?php echo $order["id"]; ?>" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1">
-            <i class="bi bi-arrow-repeat"></i>
-            <span>Update Status</span>
-        </a>
+        <?php if ($order["status"] !== "completed") { ?>
+            <a href="update-status.php?id=<?php echo $order["id"]; ?>" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1">
+                <i class="bi bi-arrow-repeat"></i>
+                <span>Update Status</span>
+            </a>
+        <?php } ?>
     </div>
 </div>
 
@@ -226,6 +228,11 @@ $status_class = match($order["status"]) {
                         <i class="bi bi-check2-all"></i>
                         <span>Complete Order &amp; Deduct Stock</span>
                     </a>
+                <?php } elseif ($order["status"] === "completed") { ?>
+                    <div class="alert alert-success d-flex align-items-center gap-2 py-2 px-3 mb-0 border-success-subtle">
+                        <i class="bi bi-check2-circle text-success fs-5"></i>
+                        <span class="small text-secondary">This order has completed the kitchen workflow.</span>
+                    </div>
                 <?php } else { ?>
                     <a href="update-status.php?id=<?php echo $order["id"]; ?>" class="btn btn-outline-secondary w-100 py-2">
                         Update Status
