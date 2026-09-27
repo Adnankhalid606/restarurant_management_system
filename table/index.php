@@ -42,15 +42,15 @@ $result = mysqli_query($conn, $sql);
                 </td>
 
                 <td>
-                    <?php echo $table["table_number"]; ?>
+                    <?php echo htmlspecialchars($table["table_number"], ENT_QUOTES, 'UTF-8'); ?>
                 </td>
 
                 <td>
-                    <?php echo $table["capacity"]; ?>
+                    <?php echo htmlspecialchars($table["capacity"], ENT_QUOTES, 'UTF-8'); ?>
                 </td>
 
                 <td>
-                    <?php echo $table["status"]; ?>
+                    <?php echo htmlspecialchars($table["status"], ENT_QUOTES, 'UTF-8'); ?>
                 </td>
 
                 <td>

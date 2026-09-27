@@ -40,9 +40,9 @@ $result = mysqli_query($conn, $sql);
 
                 <td><?php echo $item["id"]; ?></td>
 
-                <td><?php echo $item["name"]; ?></td>
+                <td><?php echo htmlspecialchars($item["name"], ENT_QUOTES, 'UTF-8'); ?></td>
 
-                <td><?php echo $item["category"]; ?></td>
+                <td><?php echo htmlspecialchars($item["category"], ENT_QUOTES, 'UTF-8'); ?></td>
 
                 <td><?php echo $item["price"]; ?></td>
 

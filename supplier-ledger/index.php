@@ -34,7 +34,7 @@ $result = mysqli_query($conn, $sql);
 
     <h1>Supplier Ledger</h1>
 
-    <a href="../ndex.php">Back to Dashboard</a>
+    <a href="../index.php">Back to Dashboard</a>
 
     <hr>
 

@@ -58,10 +58,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         // Update password only if a new password was entered
         if ($password !== "") {
 
-            $hashed_password = password_hash(
-                $password,
-                PASSWORD_DEFAULT
-            );
 
             $sql = "UPDATE users
                     SET name = ?,
@@ -78,7 +74,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 "ssssii",
                 $name,
                 $email,
-                $hashed_password,
+                $password,
                 $role,
                 $is_active,
                 $id

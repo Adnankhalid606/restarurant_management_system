@@ -9,10 +9,12 @@ $from = $_GET["from"] ?? date("Y-m-01");
 $to = $_GET["to"] ?? date("Y-m-d");
 
 $sales_sql = "
-    SELECT COALESCE(SUM(total_amount), 0) AS total_sales
+    SELECT COALESCE(SUM(COALESCE(bills.total_amount, orders.total_amount)), 0) AS total_sales
     FROM orders
-    WHERE DATE(created_at) BETWEEN ? AND ?
-    AND status = 'completed'
+    LEFT JOIN bills
+        ON orders.id = bills.order_id
+    WHERE DATE(orders.created_at) BETWEEN ? AND ?
+    AND orders.status = 'completed'
 ";
 
 $sales_stmt = mysqli_prepare($conn, $sales_sql);

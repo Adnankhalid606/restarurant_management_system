@@ -72,22 +72,22 @@ $items = mysqli_stmt_get_result($stmt);
 
 <p>
     <strong>Customer:</strong>
-    <?php echo $bill["customer_name"] ?? "Walk-in"; ?>
+    <?php echo htmlspecialchars($bill["customer_name"] ?? "Walk-in", ENT_QUOTES, 'UTF-8'); ?>
 </p>
 
 <p>
     <strong>Phone:</strong>
-    <?php echo $bill["customer_phone"] ?? "-"; ?>
+    <?php echo htmlspecialchars($bill["customer_phone"] ?? "-", ENT_QUOTES, 'UTF-8'); ?>
 </p>
 
 <p>
     <strong>Order Type:</strong>
-    <?php echo $bill["order_type"]; ?>
+    <?php echo htmlspecialchars($bill["order_type"], ENT_QUOTES, 'UTF-8'); ?>
 </p>
 
 <p>
     <strong>Order Status:</strong>
-    <?php echo $bill["order_status"]; ?>
+    <?php echo htmlspecialchars($bill["order_status"], ENT_QUOTES, 'UTF-8'); ?>
 </p>
 
 <p>
@@ -112,7 +112,7 @@ $items = mysqli_stmt_get_result($stmt);
 <tr>
 
     <td>
-        <?php echo $item["menu_item_name"]; ?>
+        <?php echo htmlspecialchars($item["menu_item_name"], ENT_QUOTES, 'UTF-8'); ?>
     </td>
 
     <td>
@@ -158,7 +158,7 @@ $items = mysqli_stmt_get_result($stmt);
 
 <p>
     <strong>Payment Status:</strong>
-    <?php echo $bill["payment_status"]; ?>
+    <?php echo htmlspecialchars($bill["payment_status"], ENT_QUOTES, 'UTF-8'); ?>
 </p>
 
 <?php if ($bill["paid_at"] !== null) { ?>

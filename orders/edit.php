@@ -191,84 +191,107 @@ $new_table_id = $table_id;
 
 try {
 
-    // Check new table
+    if ($status === "cancelled") {
 
-    if (
-        $new_table_id !== null &&
-        $new_table_id !== $old_table_id
-    ) {
+        // Release old table if assigned
+        if ($old_table_id !== null) {
 
-        $sql = "SELECT status
-                FROM restaurant_tables
-                WHERE id = ?";
+            $sql = "UPDATE restaurant_tables
+                    SET status = 'available'
+                    WHERE id = ?";
 
-        $stmt = mysqli_prepare($conn, $sql);
+            $stmt = mysqli_prepare($conn, $sql);
 
-        mysqli_stmt_bind_param(
-            $stmt,
-            "i",
-            $new_table_id
-        );
+            mysqli_stmt_bind_param(
+                $stmt,
+                "i",
+                $old_table_id
+            );
 
-        mysqli_stmt_execute($stmt);
-
-        $result = mysqli_stmt_get_result($stmt);
-
-        $new_table = mysqli_fetch_assoc($result);
-
-        if (!$new_table) {
-            throw new Exception("Table not found.");
+            mysqli_stmt_execute($stmt);
         }
 
-        if ($new_table["status"] !== "available") {
-            throw new Exception("Selected table is not available.");
+    } else {
+
+        // Check new table
+
+        if (
+            $new_table_id !== null &&
+            $new_table_id !== $old_table_id
+        ) {
+
+            $sql = "SELECT status
+                    FROM restaurant_tables
+                    WHERE id = ?";
+
+            $stmt = mysqli_prepare($conn, $sql);
+
+            mysqli_stmt_bind_param(
+                $stmt,
+                "i",
+                $new_table_id
+            );
+
+            mysqli_stmt_execute($stmt);
+
+            $result = mysqli_stmt_get_result($stmt);
+
+            $new_table = mysqli_fetch_assoc($result);
+
+            if (!$new_table) {
+                throw new Exception("Table not found.");
+            }
+
+            if ($new_table["status"] !== "available") {
+                throw new Exception("Selected table is not available.");
+            }
         }
-    }
 
 
-    // Release old table
+        // Release old table
 
-    if (
-        $old_table_id !== null &&
-        $old_table_id !== $new_table_id
-    ) {
+        if (
+            $old_table_id !== null &&
+            $old_table_id !== $new_table_id
+        ) {
 
-        $sql = "UPDATE restaurant_tables
-                SET status = 'available'
-                WHERE id = ?";
+            $sql = "UPDATE restaurant_tables
+                    SET status = 'available'
+                    WHERE id = ?";
 
-        $stmt = mysqli_prepare($conn, $sql);
+            $stmt = mysqli_prepare($conn, $sql);
 
-        mysqli_stmt_bind_param(
-            $stmt,
-            "i",
-            $old_table_id
-        );
+            mysqli_stmt_bind_param(
+                $stmt,
+                "i",
+                $old_table_id
+            );
 
-        mysqli_stmt_execute($stmt);
-    }
+            mysqli_stmt_execute($stmt);
+        }
 
 
-    // Occupy new table
+        // Occupy new table
 
-    if (
-        $new_table_id !== null &&
-        $new_table_id !== $old_table_id
-    ) {
+        if (
+            $new_table_id !== null &&
+            $new_table_id !== $old_table_id
+        ) {
 
-        $sql = "UPDATE restaurant_tables
-                SET status = 'occupied'
-                WHERE id = ?";
+            $sql = "UPDATE restaurant_tables
+                    SET status = 'occupied'
+                    WHERE id = ?";
 
-        $stmt = mysqli_prepare($conn, $sql);
+            $stmt = mysqli_prepare($conn, $sql);
 
-        mysqli_stmt_bind_param(
-            $stmt,
-            "i",
-            $new_table_id
-        );
+            mysqli_stmt_bind_param(
+                $stmt,
+                "i",
+                $new_table_id
+            );
 
-        mysqli_stmt_execute($stmt);
+            mysqli_stmt_execute($stmt);
+        }
     }
 
 
@@ -508,6 +531,14 @@ try {
             }
             ?>>
                 Ready
+            </option>
+
+            <option value="cancelled" <?php
+            if ($order["status"] === "cancelled") {
+                echo "selected";
+            }
+            ?>>
+                Cancelled
             </option>
 
 

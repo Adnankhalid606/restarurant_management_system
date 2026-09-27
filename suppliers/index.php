@@ -49,15 +49,15 @@ $result = mysqli_query($conn, $sql);
                 </td>
 
                 <td>
-                    <?php echo $supplier["name"]; ?>
+                    <?php echo htmlspecialchars($supplier["name"], ENT_QUOTES, 'UTF-8'); ?>
                 </td>
 
                 <td>
-                    <?php echo $supplier["phone"]; ?>
+                    <?php echo htmlspecialchars($supplier["phone"], ENT_QUOTES, 'UTF-8'); ?>
                 </td>
 
                 <td>
-                    <?php echo $supplier["address"]; ?>
+                    <?php echo htmlspecialchars($supplier["address"], ENT_QUOTES, 'UTF-8'); ?>
                 </td>
 
                 <td>

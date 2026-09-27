@@ -19,11 +19,11 @@ require_once "./includes/auth.php";
     <h1>Restaurant Dashboard</h1>
 
     <p>
-        Welcome, <strong><?php echo $_SESSION["user_name"]; ?></strong>
+        Welcome, <strong><?php echo htmlspecialchars($_SESSION["user_name"], ENT_QUOTES, 'UTF-8'); ?></strong>
     </p>
 
     <p>
-        Role: <strong><?php echo $_SESSION["role"]; ?></strong>
+        Role: <strong><?php echo htmlspecialchars($_SESSION["role"], ENT_QUOTES, 'UTF-8'); ?></strong>
     </p>
 
     <hr>
@@ -61,7 +61,7 @@ require_once "./includes/auth.php";
             $_SESSION["role"] === "admin" ||
             $_SESSION["role"] === "kitchen"
         ) { ?>
-            <li><a href="../kitchen/index.php">Kitchen</a></li>
+            <li><a href="./kitchen/index.php">Kitchen</a></li>
         <?php } ?>
 
         <li><a href="./recipes/index.php">Recipes</a></li>

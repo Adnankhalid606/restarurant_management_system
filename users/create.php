@@ -33,10 +33,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     } else {
 
-        // Hash password
-        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-
-
+       
         // Create user
         $sql = "INSERT INTO users (name, email, password, role)
                 VALUES (?, ?, ?, ?)";
@@ -48,7 +45,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             "ssss",
             $name,
             $email,
-            $hashed_password,
+            $password,
             $role
         );
 

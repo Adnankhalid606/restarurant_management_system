@@ -53,11 +53,11 @@ $result = mysqli_query($conn, $sql);
                 </td>
 
                 <td>
-                    <?php echo $material["name"]; ?>
+                    <?php echo htmlspecialchars($material["name"], ENT_QUOTES, 'UTF-8'); ?>
                 </td>
 
                 <td>
-                    <?php echo $material["unit"]; ?>
+                    <?php echo htmlspecialchars($material["unit"], ENT_QUOTES, 'UTF-8'); ?>
                 </td>
 
                 <td>
