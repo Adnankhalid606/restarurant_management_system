@@ -23,7 +23,6 @@ if (!$item) {
     die("Menu item not found.");
 }
 
-
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     $name = $_POST["name"];
@@ -52,82 +51,143 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     header("Location: index.php");
     exit;
 }
+
+$page_title = "Edit Menu Item #" . $id;
+$active_menu = "menu";
+
+require_once "../includes/header.php";
 ?>
 
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Edit Menu Item</title>
-</head>
-<body>
+<!-- Page Header Bar -->
+<div class="page-header-bar">
+    <div>
+        <h2 class="page-header-title">Edit Menu Item #<?php echo $id; ?></h2>
+        <p class="page-header-subtitle">Update dish details, selling price, or toggle kitchen availability</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <a href="index.php" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1">
+            <i class="bi bi-arrow-left"></i>
+            <span>Back to Menu</span>
+        </a>
+    </div>
+</div>
 
-    <h1>Edit Menu Item</h1>
+<div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+        <div class="pos-card shadow-sm">
+            <div class="pos-card-header bg-light d-flex align-items-center justify-content-between">
+                <span class="pos-card-title">
+                    <i class="bi bi-pencil-square text-primary me-2"></i>Modify Menu Record
+                </span>
+                <span class="badge bg-white text-muted border">ID #<?php echo $id; ?></span>
+            </div>
+            <div class="pos-card-body p-4">
+                <form method="POST">
+                    <!-- Item Name -->
+                    <div class="mb-3">
+                        <label for="itemName" class="form-label pos-form-label">
+                            Dish / Item Name <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0">
+                                <i class="bi bi-egg-fried text-muted"></i>
+                            </span>
+                            <input
+                                type="text"
+                                class="form-control pos-form-control border-start-0 py-2"
+                                id="itemName"
+                                name="name"
+                                value="<?php echo htmlspecialchars($item["name"], ENT_QUOTES, 'UTF-8'); ?>"
+                                required
+                            >
+                        </div>
+                        <div class="form-text text-muted small">The official name that appears on tickets, orders, and guest checks.</div>
+                    </div>
 
-    <form method="POST">
+                    <!-- Category -->
+                    <div class="mb-3">
+                        <label for="itemCategory" class="form-label pos-form-label">
+                            Category / Group
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0">
+                                <i class="bi bi-tag text-muted"></i>
+                            </span>
+                            <input
+                                type="text"
+                                class="form-control pos-form-control border-start-0 py-2"
+                                id="itemCategory"
+                                name="category"
+                                value="<?php echo htmlspecialchars($item["category"] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                            >
+                        </div>
+                        <div class="form-text text-muted small">Groups similar items together on the POS screen.</div>
+                    </div>
 
-        <label>Name</label>
-        <br>
-        <input
-            type="text"
-            name="name"
-            value="<?php echo $item["name"]; ?>"
-            required
-        >
+                    <!-- Selling Price -->
+                    <div class="mb-3">
+                        <label for="itemPrice" class="form-label pos-form-label">
+                            Selling Price (Rs.) <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0 fw-semibold text-dark">Rs.</span>
+                            <input
+                                type="number"
+                                class="form-control pos-form-control border-start-0 py-2 fw-semibold fs-6"
+                                id="itemPrice"
+                                name="price"
+                                step="0.01"
+                                min="0"
+                                value="<?php echo htmlspecialchars($item["price"], ENT_QUOTES, 'UTF-8'); ?>"
+                                required
+                            >
+                        </div>
+                        <div class="form-text text-muted small">Customer billing rate per unit.</div>
+                    </div>
 
-        <br><br>
+                    <!-- Availability Status -->
+                    <div class="mb-4">
+                        <label for="itemAvailability" class="form-label pos-form-label">
+                            Availability Status <span class="text-danger">*</span>
+                        </label>
+                        <select name="is_available" id="itemAvailability" class="form-select pos-form-control py-2" required>
+                            <option value="1" <?php if ($item["is_available"] == 1) echo "selected"; ?>>
+                                Available (Active &amp; ready for order taking)
+                            </option>
+                            <option value="0" <?php if ($item["is_available"] == 0) echo "selected"; ?>>
+                                Unavailable (Temporarily sold out or out of stock)
+                            </option>
+                        </select>
+                        <div class="form-text text-muted small">Unavailable items cannot be selected for new customer orders.</div>
+                    </div>
 
-        <label>Category</label>
-        <br>
-        <input
-            type="text"
-            name="category"
-            value="<?php echo $item["category"]; ?>"
-        >
+                    <!-- Actions -->
+                    <div class="d-flex align-items-center justify-content-between pt-3 border-top">
+                        <a href="delete.php?id=<?php echo $id; ?>" 
+                           class="btn btn-outline-danger px-3 d-inline-flex align-items-center gap-1"
+                           onclick="return confirm('Are you sure you want to delete menu item <?php echo htmlspecialchars(addslashes($item['name']), ENT_QUOTES, 'UTF-8'); ?>? Note: Items with existing orders or recipes cannot be deleted.');">
+                            <i class="bi bi-trash"></i>
+                            <span>Delete</span>
+                        </a>
 
-        <br><br>
+                        <div class="d-flex align-items-center gap-2">
+                            <a href="index.php" class="btn btn-outline-secondary px-3">
+                                Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary px-4 d-inline-flex align-items-center gap-1 shadow-sm">
+                                <i class="bi bi-check-lg"></i>
+                                <span>Update Menu Item</span>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
-        <label>Price</label>
-        <br>
-        <input
-            type="number"
-            name="price"
-            value="<?php echo $item["price"]; ?>"
-            step="0.01"
-            required
-        >
+<?php
 
-        <br><br>
+require_once "../includes/footer.php";
 
-        <label>Availability</label>
-        <br>
-
-        <select name="is_available">
-
-            <option
-                value="1"
-                <?php if ($item["is_available"] == 1) echo "selected"; ?>
-            >
-                Available
-            </option>
-
-            <option
-                value="0"
-                <?php if ($item["is_available"] == 0) echo "selected"; ?>
-            >
-                Unavailable
-            </option>
-
-        </select>
-
-        <br><br>
-
-        <button type="submit">Update Menu Item</button>
-
-    </form>
-
-    <br>
-
-    <a href="index.php">Back to Menu</a>
-
-</body>
-</html>
+?>

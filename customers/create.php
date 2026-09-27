@@ -29,44 +29,123 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     header("Location: index.php");
     exit;
 }
+
+$page_title = "Add Customer";
+$active_menu = "customers";
+
+require_once "../includes/header.php";
+
+$posted_name = $_POST["name"] ?? "";
+$posted_phone = $_POST["phone"] ?? "";
+$posted_address = $_POST["address"] ?? "";
 ?>
 
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Add Customer</title>
-</head>
-<body>
+<!-- Page Header Bar -->
+<div class="page-header-bar">
+    <div>
+        <h2 class="page-header-title">Add Customer</h2>
+        <p class="page-header-subtitle">Register a new guest profile for dine-in, takeaway, or delivery</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <a href="index.php" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1">
+            <i class="bi bi-arrow-left"></i>
+            <span>Back to Customers</span>
+        </a>
+    </div>
+</div>
 
-    <h1>Add Customer</h1>
+<div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+        <div class="pos-card shadow-sm">
+            <div class="pos-card-header bg-light">
+                <span class="pos-card-title">
+                    <i class="bi bi-person-plus text-primary me-2"></i>Customer Profile
+                </span>
+                <span class="badge bg-white text-muted border">New Record</span>
+            </div>
+            <div class="pos-card-body p-4">
+                <form method="POST">
+                    <!-- Customer Name -->
+                    <div class="mb-3">
+                        <label for="customerName" class="form-label pos-form-label">
+                            Full Name <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0">
+                                <i class="bi bi-person text-muted"></i>
+                            </span>
+                            <input
+                                type="text"
+                                class="form-control pos-form-control border-start-0 py-2"
+                                id="customerName"
+                                name="name"
+                                placeholder="e.g. John Doe"
+                                value="<?php echo htmlspecialchars($posted_name, ENT_QUOTES, 'UTF-8'); ?>"
+                                required
+                            >
+                        </div>
+                        <div class="form-text text-muted small">Guest or organization name.</div>
+                    </div>
 
-    <form method="POST">
+                    <!-- Phone Number -->
+                    <div class="mb-3">
+                        <label for="customerPhone" class="form-label pos-form-label">
+                            Phone Number
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0">
+                                <i class="bi bi-telephone text-muted"></i>
+                            </span>
+                            <input
+                                type="text"
+                                class="form-control pos-form-control border-start-0 py-2"
+                                id="customerPhone"
+                                name="phone"
+                                placeholder="e.g. +92 300 1234567"
+                                value="<?php echo htmlspecialchars($posted_phone, ENT_QUOTES, 'UTF-8'); ?>"
+                            >
+                        </div>
+                        <div class="form-text text-muted small">Contact number for reservations and order status.</div>
+                    </div>
 
-        <label>Name</label>
-        <br>
-        <input type="text" name="name" required>
+                    <!-- Delivery Address -->
+                    <div class="mb-4">
+                        <label for="customerAddress" class="form-label pos-form-label">
+                            Address / Delivery Details
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0 align-items-start pt-2">
+                                <i class="bi bi-geo-alt text-muted"></i>
+                            </span>
+                            <textarea
+                                class="form-control pos-form-control border-start-0 py-2"
+                                id="customerAddress"
+                                name="address"
+                                rows="3"
+                                placeholder="Street, block, building or area notes..."
+                            ><?php echo htmlspecialchars($posted_address, ENT_QUOTES, 'UTF-8'); ?></textarea>
+                        </div>
+                        <div class="form-text text-muted small">Useful for delivery orders and billing invoices.</div>
+                    </div>
 
-        <br><br>
+                    <!-- Actions -->
+                    <div class="d-flex align-items-center justify-content-end gap-2 pt-3 border-top">
+                        <a href="index.php" class="btn btn-outline-secondary px-3">
+                            Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary px-4 d-inline-flex align-items-center gap-1 shadow-sm">
+                            <i class="bi bi-check-lg"></i>
+                            <span>Save Customer</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
-        <label>Phone</label>
-        <br>
-        <input type="text" name="phone">
+<?php
 
-        <br><br>
+require_once "../includes/footer.php";
 
-        <label>Address</label>
-        <br>
-        <input type="text" name="address">
-
-        <br><br>
-
-        <button type="submit">Save Customer</button>
-
-    </form>
-
-    <br>
-
-    <a href="index.php">Back to Customers</a>
-
-</body>
-</html>
+?>
