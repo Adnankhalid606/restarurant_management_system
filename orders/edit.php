@@ -334,234 +334,197 @@ try {
 }
 }
 
+$page_title = "Edit Order #" . $id;
+$active_menu = "orders";
+
+require_once "../includes/header.php";
+
 ?>
 
-<!DOCTYPE html>
-<html>
+<!-- Page Header Bar -->
+<div class="page-header-bar">
+    <div>
+        <h2 class="page-header-title">Edit Order #<?php echo $id; ?></h2>
+        <p class="page-header-subtitle">
+            Update service type, dining table, or status progression
+        </p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <a href="view.php?id=<?php echo $id; ?>" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1">
+            <i class="bi bi-arrow-left"></i>
+            <span>Back to Order Ticket</span>
+        </a>
+    </div>
+</div>
 
-<head>
+<div class="alert alert-light border py-2 px-3 mb-4 small text-muted d-flex align-items-center gap-2">
+    <i class="bi bi-shield-check text-primary fs-5"></i>
+    <div>
+        Order items and total pricing (Rs. <?php echo number_format($order["total_amount"], 2); ?>) are locked for audit integrity. Use this screen to update seating, service type, or workflow status.
+    </div>
+</div>
 
-    <title>Edit Order</title>
+<form method="POST">
+    <div class="row g-4">
+        <!-- Left: Service & Seating -->
+        <div class="col-12 col-lg-7">
+            <div class="pos-card">
+                <div class="pos-card-header">
+                    <span class="pos-card-title"><i class="bi bi-gear me-2 text-primary"></i>Service &amp; Seating Details</span>
+                </div>
+                <div class="pos-card-body">
+                    <!-- Customer -->
+                    <div class="mb-3">
+                        <label for="customerId" class="form-label pos-form-label">Customer</label>
+                        <select name="customer_id" id="customerId" class="form-select pos-form-control">
+                            <option value="">Walk-in Customer</option>
+                            <?php mysqli_data_seek($customers, 0); ?>
+                            <?php while ($customer = mysqli_fetch_assoc($customers)) { ?>
+                                <option value="<?php echo $customer["id"]; ?>" <?php if ($customer["id"] == $order["customer_id"]) echo "selected"; ?>>
+                                    <?php echo htmlspecialchars($customer["name"], ENT_QUOTES, 'UTF-8'); ?>
+                                </option>
+                            <?php } ?>
+                        </select>
+                    </div>
 
-</head>
+                    <!-- Order Type -->
+                    <div class="mb-3">
+                        <label for="orderType" class="form-label pos-form-label">Order Type <span class="text-danger">*</span></label>
+                        <select name="order_type" id="orderType" class="form-select pos-form-control" required>
+                            <option value="dine_in" <?php if ($order["order_type"] === "dine_in") echo "selected"; ?>>
+                                Dine In
+                            </option>
+                            <option value="delivery" <?php if ($order["order_type"] === "delivery") echo "selected"; ?>>
+                                Delivery
+                            </option>
+                            <option value="pickup" <?php if ($order["order_type"] === "pickup") echo "selected"; ?>>
+                                Pickup
+                            </option>
+                        </select>
+                    </div>
 
-<body>
+                    <!-- Dining Table -->
+                    <div id="tableSection" class="mb-3" style="<?php echo ($order["order_type"] === "dine_in") ? "" : "display: none;"; ?>">
+                        <label for="tableId" class="form-label pos-form-label">Dining Table</label>
+                        <select name="table_id" id="tableId" class="form-select pos-form-control">
+                            <option value="">No Table Assigned</option>
+                            <?php mysqli_data_seek($tables, 0); ?>
+                            <?php while ($table = mysqli_fetch_assoc($tables)) { ?>
+                                <option value="<?php echo $table["id"]; ?>" <?php if ($table["id"] == $order["table_id"]) echo "selected"; ?>>
+                                    Table <?php echo htmlspecialchars($table["table_number"], ENT_QUOTES, 'UTF-8'); ?>
+                                </option>
+                            <?php } ?>
+                        </select>
+                        <small class="text-muted d-block mt-1">Changing table automatically releases the previous table.</small>
+                    </div>
 
-    <h1>
-        Edit Order #<?php echo $order["id"]; ?>
-    </h1>
+                    <!-- Waiter Assignment -->
+                    <div class="mb-2">
+                        <?php if ($_SESSION["role"] === "admin") { ?>
+                            <label for="waiterId" class="form-label pos-form-label">Assigned Waiter <span class="text-danger">*</span></label>
+                            <select name="waiter_id" id="waiterId" class="form-select pos-form-control" required>
+                                <option value="">Select Waiter</option>
+                                <?php mysqli_data_seek($waiters, 0); ?>
+                                <?php while ($waiter = mysqli_fetch_assoc($waiters)) { ?>
+                                    <option value="<?php echo $waiter["id"]; ?>" <?php if ($waiter["id"] == $order["waiter_id"]) echo "selected"; ?>>
+                                        <?php echo htmlspecialchars($waiter["name"], ENT_QUOTES, 'UTF-8'); ?>
+                                    </option>
+                                <?php } ?>
+                            </select>
+                        <?php } else { ?>
+                            <label class="form-label pos-form-label">Assigned Waiter</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-person-badge"></i></span>
+                                <input type="text" class="form-control pos-form-control bg-light border-start-0" value="<?php echo htmlspecialchars($_SESSION["user_name"], ENT_QUOTES, 'UTF-8'); ?>" readonly>
+                            </div>
+                        <?php } ?>
+                    </div>
+                </div>
+            </div>
+        </div>
 
+        <!-- Right: Status Progression & Actions -->
+        <div class="col-12 col-lg-5">
+            <div class="pos-card mb-4">
+                <div class="pos-card-header">
+                    <span class="pos-card-title"><i class="bi bi-clock-history me-2 text-primary"></i>Status &amp; Workflow</span>
+                </div>
+                <div class="pos-card-body">
+                    <!-- Status -->
+                    <div class="mb-3">
+                        <label for="orderStatus" class="form-label pos-form-label">Order Status <span class="text-danger">*</span></label>
+                        <select name="status" id="orderStatus" class="form-select pos-form-control" required>
+                            <option value="pending" <?php if ($order["status"] === "pending") echo "selected"; ?>>
+                                Pending
+                            </option>
+                            <option value="preparing" <?php if ($order["status"] === "preparing") echo "selected"; ?>>
+                                Preparing
+                            </option>
+                            <option value="ready" <?php if ($order["status"] === "ready") echo "selected"; ?>>
+                                Ready
+                            </option>
+                            <option value="cancelled" <?php if ($order["status"] === "cancelled") echo "selected"; ?>>
+                                Cancelled
+                            </option>
+                        </select>
+                        <small class="text-muted d-block mt-1">Cancelling an order automatically releases any occupied dining table.</small>
+                    </div>
 
-    <form method="POST">
+                    <!-- Readonly Order Summary Card -->
+                    <div class="order-summary-box mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-muted small">Payment Status:</span>
+                            <span class="badge-subtle badge-status-<?php echo $order['payment_status']; ?> text-capitalize">
+                                <?php echo htmlspecialchars($order["payment_status"], ENT_QUOTES, 'UTF-8'); ?>
+                            </span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-muted small">Placed Date:</span>
+                            <span class="text-dark small fw-medium">
+                                <?php echo !empty($order["created_at"]) ? date("M j, Y g:i A", strtotime($order["created_at"])) : "-"; ?>
+                            </span>
+                        </div>
+                        <hr class="my-2 border-secondary-subtle">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold text-dark">Order Total:</span>
+                            <span class="fs-5 fw-bold text-primary">Rs. <?php echo number_format($order["total_amount"], 2); ?></span>
+                        </div>
+                    </div>
 
-        <label>
-            Customer
-        </label>
+                    <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm mb-2">
+                        <i class="bi bi-save"></i>
+                        <span>Update Order</span>
+                    </button>
+                    <a href="view.php?id=<?php echo $id; ?>" class="btn btn-outline-secondary w-100 py-2">
+                        Cancel
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
 
-        <br>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const orderType = document.getElementById("orderType");
+    const tableSection = document.getElementById("tableSection");
+    const tableSelect = document.getElementById("tableId");
 
-        <select name="customer_id">
-
-            <option value="">
-                Walk-in Customer
-            </option>
-
-            <?php while ($customer = mysqli_fetch_assoc($customers)) { ?>
-
-                <option value="<?php echo $customer["id"]; ?>" <?php
-                   if ($customer["id"] == $order["customer_id"]) {
-                       echo "selected";
-                   }
-                   ?>>
-
-                    <?php echo htmlspecialchars($customer["name"]); ?>
-
-                </option>
-
-            <?php } ?>
-
-        </select>
-
-        <br><br>
-
-
-        <?php if ($_SESSION["role"] === "admin") { ?>
-
-            <label>
-                Waiter
-            </label>
-
-            <br>
-
-            <select name="waiter_id" required>
-
-                <option value="">
-                    Select Waiter
-                </option>
-
-                <?php while ($waiter = mysqli_fetch_assoc($waiters)) { ?>
-
-                    <option value="<?php echo $waiter["id"]; ?>" <?php
-                       if ($waiter["id"] == $order["waiter_id"]) {
-                           echo "selected";
-                       }
-                       ?>>
-
-                        <?php echo $waiter["name"]; ?>
-
-                    </option>
-
-                <?php } ?>
-
-            </select>
-
-            <br><br>
-
-        <?php } else { ?>
-
-            <p>
-
-                <strong>
-                    Waiter:
-                </strong>
-
-                <?php echo $_SESSION["user_name"]; ?>
-
-            </p>
-
-        <?php } ?>
-
-
-        <label>
-            Table
-        </label>
-
-        <br>
-
-        <select name="table_id">
-
-            <option value="">
-                No Table
-            </option>
-
-            <?php while ($table = mysqli_fetch_assoc($tables)) { ?>
-
-                <option value="<?php echo $table["id"]; ?>" <?php
-                   if ($table["id"] == $order["table_id"]) {
-                       echo "selected";
-                   }
-                   ?>>
-
-                    Table
-                    <?php echo $table["table_number"]; ?>
-
-                </option>
-
-            <?php } ?>
-
-        </select>
-
-        <br><br>
-
-
-        <label>
-            Order Type
-        </label>
-
-        <br>
-
-        <select name="order_type">
-
-            <option value="dine_in" <?php
-            if ($order["order_type"] === "dine_in") {
-                echo "selected";
+    if (orderType && tableSection) {
+        orderType.addEventListener("change", function () {
+            if (this.value === "dine_in") {
+                tableSection.style.display = "block";
+            } else {
+                tableSection.style.display = "none";
+                if (tableSelect) tableSelect.value = "";
             }
-            ?>>
-                Dine In
-            </option>
+        });
+    }
+});
+</script>
 
-            <option value="delivery" <?php
-            if ($order["order_type"] === "delivery") {
-                echo "selected";
-            }
-            ?>>
-                Delivery
-            </option>
+<?php
 
-            <option value="pickup" <?php
-            if ($order["order_type"] === "pickup") {
-                echo "selected";
-            }
-            ?>>
-                Pickup
-            </option>
+require_once "../includes/footer.php";
 
-        </select>
-
-        <br><br>
-
-
-        <label>
-            Status
-        </label>
-
-        <br>
-
-        <select name="status">
-
-            <option value="pending" <?php
-            if ($order["status"] === "pending") {
-                echo "selected";
-            }
-            ?>>
-                Pending
-            </option>
-
-            <option value="preparing" <?php
-            if ($order["status"] === "preparing") {
-                echo "selected";
-            }
-            ?>>
-                Preparing
-            </option>
-
-            <option value="ready" <?php
-            if ($order["status"] === "ready") {
-                echo "selected";
-            }
-            ?>>
-                Ready
-            </option>
-
-            <option value="cancelled" <?php
-            if ($order["status"] === "cancelled") {
-                echo "selected";
-            }
-            ?>>
-                Cancelled
-            </option>
-
-
-        </select>
-
-        <br><br>
-
-        <br><br>
-
-
-        <button type="submit">
-            Update Order
-        </button>
-
-    </form>
-
-
-    <br>
-
-    <a href="view.php?id=<?php echo $id; ?>">
-        Back to Order
-    </a>
-
-</body>
-
-</html>
+?>

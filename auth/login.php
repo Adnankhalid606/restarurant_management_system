@@ -50,60 +50,81 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         header("Location: ../index.php");
         exit;
     }
-}
+};
 
+$page_title = "Sign In";
+$no_shell = true;
+require_once "../includes/header.php";
 ?>
 
-<!DOCTYPE html>
-<html>
+<div class="login-wrapper">
+    <div class="login-card">
+        <div class="text-center mb-4">
+            <div class="login-brand-icon">
+                <i class="bi bi-shop"></i>
+            </div>
+            <h4 class="fw-bold mb-1" style="color: var(--pos-brand);">RestoBar POS</h4>
+            <p class="text-muted small mb-0">Restaurant Management &bull; Terminal Access</p>
+        </div>
 
-<head>
-    <title>Login</title>
-</head>
+        <?php if ($error !== "") { ?>
+            <div class="alert alert-danger d-flex align-items-center py-2 px-3 mb-3 border-danger-subtle" role="alert">
+                <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>
+                <div class="small fw-medium"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></div>
+            </div>
+        <?php } ?>
 
-<body>
+        <form method="POST" action="">
+            <div class="mb-3">
+                <label for="email" class="form-label pos-form-label">Email Address</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-white text-muted border-end-0">
+                        <i class="bi bi-envelope"></i>
+                    </span>
+                    <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        class="form-control pos-form-control border-start-0 ps-0"
+                        placeholder="name@restaurant.local"
+                        value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email'], ENT_QUOTES, 'UTF-8') : ''; ?>"
+                        required
+                        autofocus
+                    >
+                </div>
+            </div>
 
-<h1>Login</h1>
+            <div class="mb-4">
+                <label for="password" class="form-label pos-form-label">Password</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-white text-muted border-end-0">
+                        <i class="bi bi-lock"></i>
+                    </span>
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        class="form-control pos-form-control border-start-0 ps-0"
+                        placeholder="••••••••"
+                        required
+                    >
+                </div>
+            </div>
 
-<?php if ($error !== "") { ?>
+            <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold d-flex align-items-center justify-content-center gap-2">
+                <i class="bi bi-box-arrow-in-right"></i>
+                <span>Sign In to Terminal</span>
+            </button>
+        </form>
 
-<p>
-    <strong><?php echo $error; ?></strong>
-</p>
+        <div class="mt-4 pt-3 border-top text-center">
+            <span class="text-muted small">
+                <i class="bi bi-shield-check me-1 text-secondary"></i> Authorized Staff Access Only
+            </span>
+        </div>
+    </div>
+</div>
 
-<?php } ?>
-
-
-<form method="POST">
-
-    <label>Email</label>
-    <br>
-
-    <input
-        type="email"
-        name="email"
-        required
-    >
-
-    <br><br>
-
-    <label>Password</label>
-    <br>
-
-    <input
-        type="password"
-        name="password"
-        required
-    >
-
-    <br><br>
-
-    <button type="submit">
-        Login
-    </button>
-
-</form>
-
-</body>
-
-</html>
+<?php
+require_once "../includes/footer.php";
+?>
