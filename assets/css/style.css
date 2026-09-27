@@ -738,11 +738,77 @@ body {
     border: 1px solid var(--pos-border);
 }
 
+/* Suppliers Module Styling */
+.supplier-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    background-color: #F1F5F9;
+    color: var(--pos-accent);
+    font-weight: 600;
+    font-size: 1.1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: 1px solid var(--pos-border);
+}
+
 /* Menu Items Display */
 .menu-price-tag {
     font-weight: 700;
     font-size: 1.05rem;
     color: var(--pos-text);
+}
+
+/* Recipes Module Styling */
+.recipe-ingredient-row {
+    transition: background-color 0.15s ease-in-out;
+}
+.recipe-ingredient-row:hover {
+    background-color: #F8FAFC;
+}
+.recipe-unit-pill {
+    background-color: #EEF2F6;
+    color: var(--pos-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.6rem;
+    border-radius: 9999px;
+    border: 1px solid var(--pos-border);
+}
+.recipe-flow-card {
+    background-color: #F8FAFC;
+    border: 1px dashed var(--pos-border);
+    border-radius: 8px;
+    padding: 1rem;
+}
+.recipe-flow-step-num {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: var(--pos-brand);
+    color: #FFFFFF;
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 0.5rem;
+}
+
+/* Purchases Module Styling */
+.purchase-item {
+    transition: background-color 0.15s ease-in-out;
+}
+.purchase-item:hover {
+    background-color: #F8FAFC;
+}
+.purchase-summary-box {
+    background-color: #F8FAFC;
+    border: 1px solid var(--pos-border);
+    border-radius: 8px;
+    padding: 1rem;
 }
 
 /* Print Stylesheet for POS Tickets */
