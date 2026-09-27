@@ -869,6 +869,52 @@ body {
     align-items: center;
 }
 
+/* Customer Ledger Module Styling */
+.ledger-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    background-color: #EFF6FF;
+    color: var(--pos-accent);
+    font-size: 1.1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+.ledger-info-box {
+    background-color: #FFFFFF;
+    border: 1px solid var(--pos-border);
+    border-radius: var(--pos-radius);
+    padding: 1.25rem;
+}
+.ledger-summary-kpi {
+    border-left: 3px solid transparent;
+}
+.ledger-summary-kpi.kpi-billed {
+    border-left-color: var(--pos-accent);
+}
+.ledger-summary-kpi.kpi-paid {
+    border-left-color: var(--pos-success);
+}
+.ledger-summary-kpi.kpi-outstanding {
+    border-left-color: var(--pos-danger);
+}
+.supplier-ledger-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    background-color: #F8FAFC;
+    color: var(--pos-brand);
+    font-size: 1.1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: 1px solid var(--pos-border);
+}
+
 /* Print Stylesheet for POS Tickets */
 @media print {
     .app-sidebar,
