@@ -7,7 +7,7 @@ $user_name = $_SESSION["user_name"] ?? "Staff";
 $user_email = $_SESSION["user_email"] ?? "";
 
 $page_title = "Restaurant Dashboard";
-$page_subtitle = "Operational Directory & Navigation";
+$page_subtitle = "Restaurant Management Overview";
 $active_menu = "dashboard";
 
 require_once "./includes/header.php";

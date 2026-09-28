@@ -1,6 +1,6 @@
 <?php
 
-
+date_default_timezone_set('Asia/Karachi');
 if (!function_exists('formatDate')) {
     /**
      * Format a date value to standard presentation format: "Sep 28, 2026"

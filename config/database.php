@@ -1,4 +1,6 @@
 <?php
+date_default_timezone_set('Asia/Karachi');
+
 $host = "localhost";
 $username = "root";
 $password = "";
