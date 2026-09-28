@@ -1,0 +1,3 @@
+# RestoBar POS Apache Configuration
+# Custom 404 Error Document (scoped strictly to restaurant_pos)
+ErrorDocument 404 /restaurant_pos/404.php
