@@ -37,13 +37,29 @@ if (mysqli_num_rows($result) > 0) {
     die("Cannot delete menu item: This item has an associated recipe.");
 }
 
+// Fetch image filename for cleanup if delete succeeds
+$sql = "SELECT image FROM menu_items WHERE id = ?";
+$stmt = mysqli_prepare($conn, $sql);
+mysqli_stmt_bind_param($stmt, "i", $id);
+mysqli_stmt_execute($stmt);
+$res = mysqli_stmt_get_result($stmt);
+$row = mysqli_fetch_assoc($res);
+$image_filename = $row ? ($row["image"] ?? null) : null;
+
 $sql = "DELETE FROM menu_items WHERE id = ?";
 
 $stmt = mysqli_prepare($conn, $sql);
 
 mysqli_stmt_bind_param($stmt, "i", $id);
 
-mysqli_stmt_execute($stmt);
+if (mysqli_stmt_execute($stmt)) {
+    if (mysqli_stmt_affected_rows($stmt) > 0 && !empty($image_filename)) {
+        $file_path = dirname(__DIR__) . "/assets/uploads/menu/" . $image_filename;
+        if (file_exists($file_path)) {
+            @unlink($file_path);
+        }
+    }
+}
 
 header("Location: index.php");
 exit;

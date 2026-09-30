@@ -1015,6 +1015,152 @@ h6,
   border: 1px solid rgba(217, 119, 6, 0.2);
 }
 
+/* Visual Menu Display & POS Order Grid */
+.pos-menu-scroll-container {
+  max-height: calc(100vh - 210px);
+  min-height: 480px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.pos-menu-card {
+  border: 1px solid var(--pos-border);
+  border-radius: 10px;
+  background-color: var(--pos-surface);
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.pos-menu-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  border-color: var(--pos-accent);
+}
+
+.pos-menu-card:active {
+  transform: scale(0.98);
+}
+
+.pos-menu-card-img-wrap {
+  width: 100%;
+  height: 110px;
+  background-color: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.pos-menu-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s ease;
+}
+
+.pos-menu-card:hover .pos-menu-card-img {
+  transform: scale(1.04);
+}
+
+.pos-menu-card-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--pos-muted);
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+.pos-menu-card-body {
+  padding: 0.65rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex-grow: 1;
+}
+
+.pos-menu-card-title {
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--pos-text);
+  line-height: 1.25;
+  margin-bottom: 0.25rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.pos-menu-card-price {
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--pos-accent);
+}
+
+/* Category Filter Pills */
+.pos-cat-pill {
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.3rem 0.85rem;
+  white-space: nowrap;
+}
+
+/* Cart Item Row & Stepper */
+.cart-item-row {
+  background-color: #ffffff;
+  border: 1px solid var(--pos-border);
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+  margin-bottom: 0.5rem;
+  transition: background-color 0.15s ease;
+}
+
+.cart-item-row:hover {
+  background-color: #f8fafc;
+}
+
+.cart-qty-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  border-radius: 6px;
+  border: 1px solid var(--pos-border);
+  background-color: #ffffff;
+  color: var(--pos-text);
+  transition: all 0.12s ease;
+}
+
+.cart-qty-btn:hover {
+  background-color: var(--pos-accent);
+  color: #ffffff;
+  border-color: var(--pos-accent);
+}
+
+.cart-qty-input {
+  width: 42px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.88rem;
+  border: 1px solid var(--pos-border);
+  border-radius: 6px;
+  padding: 0.15rem 0.2rem;
+  margin: 0 4px;
+}
+
 /* Print Stylesheet for POS Tickets */
 @media print {
   .app-sidebar,

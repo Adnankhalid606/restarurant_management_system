@@ -198,9 +198,21 @@ require_once "../includes/header.php";
                             data-availability="<?php echo $avail_key; ?>">
                             <td class="text-muted fw-semibold">#<?php echo $item["id"]; ?></td>
                             <td>
-                                <div class="fw-semibold text-dark d-flex align-items-center">
-                                    <i class="bi bi-egg-fried text-primary me-2"></i>
-                                    <span><?php echo htmlspecialchars($item["name"], ENT_QUOTES, 'UTF-8'); ?></span>
+                                <div class="d-flex align-items-center gap-2">
+                                    <?php 
+                                    $img_file = !empty($item['image']) ? dirname(__DIR__) . '/assets/uploads/menu/' . $item['image'] : null;
+                                    if ($img_file && file_exists($img_file)) { ?>
+                                        <img src="../assets/uploads/menu/<?php echo htmlspecialchars($item['image'], ENT_QUOTES, 'UTF-8'); ?>" 
+                                             alt="" 
+                                             class="rounded border object-fit-cover flex-shrink-0" 
+                                             style="width: 38px; height: 38px;">
+                                    <?php } else { ?>
+                                        <div class="rounded border bg-light d-flex align-items-center justify-content-center text-muted flex-shrink-0" 
+                                             style="width: 38px; height: 38px;">
+                                            <i class="bi bi-egg-fried fs-5 text-secondary"></i>
+                                        </div>
+                                    <?php } ?>
+                                    <span class="fw-semibold text-dark"><?php echo htmlspecialchars($item["name"], ENT_QUOTES, 'UTF-8'); ?></span>
                                 </div>
                             </td>
                             <td>

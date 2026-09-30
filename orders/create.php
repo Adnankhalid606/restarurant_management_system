@@ -26,14 +26,25 @@ $tables = mysqli_query(
      ORDER BY table_number ASC"
 );
 
-//All available menu items
-$menu_items = mysqli_query(
+// All available menu items with category and image
+$menu_items_query = mysqli_query(
     $conn,
-    "SELECT id, name, price
+    "SELECT id, name, category, price, image
      FROM menu_items
      WHERE is_available = 1
-     ORDER BY name ASC"
+     ORDER BY category ASC, name ASC"
 );
+
+$available_menu_items = [];
+$menu_categories = [];
+
+while ($m_item = mysqli_fetch_assoc($menu_items_query)) {
+    $available_menu_items[] = $m_item;
+    $cat = trim($m_item['category'] ?? '');
+    if ($cat !== '' && !in_array($cat, $menu_categories)) {
+        $menu_categories[] = $cat;
+    }
+}
 
 
 //All active waiters
@@ -424,75 +435,150 @@ require_once "../includes/header.php";
     </div>
 <?php } ?>
 
+<?php
+// Prepare any prefill items if POST was submitted with errors
+$prefill_cart_items = [];
+if (!empty($_POST["menu_item_id"]) && is_array($_POST["menu_item_id"])) {
+    foreach ($_POST["menu_item_id"] as $idx => $mid) {
+        $mid = (int)$mid;
+        $qty = isset($_POST["quantity"][$idx]) ? (int)$_POST["quantity"][$idx] : 1;
+        if ($qty < 1) $qty = 1;
+        foreach ($available_menu_items as $mi) {
+            if ((int)$mi["id"] === $mid) {
+                $prefill_cart_items[] = [
+                    "id" => $mid,
+                    "name" => $mi["name"],
+                    "price" => (float)$mi["price"],
+                    "quantity" => $qty
+                ];
+                break;
+            }
+        }
+    }
+}
+$posted_order_type = $_POST["order_type"] ?? "";
+$posted_cust_id = $_POST["customer_id"] ?? "";
+$posted_table_id = $_POST["table_id"] ?? "";
+$posted_waiter_id = $_POST["waiter_id"] ?? "";
+?>
+
 <form method="POST" id="createOrderForm">
-    <div class="row g-4">
-        <!-- Main: Order Items Entry -->
-        <div class="col-12 col-lg-8">
-            <div class="pos-card mb-4">
-                <div class="pos-card-header">
-                    <span class="pos-card-title"><i class="bi bi-basket me-2 text-primary"></i>Order Items</span>
-                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addItem()">
-                        <i class="bi bi-plus-lg me-1"></i>Add Item Row
-                    </button>
+    <div class="row g-3">
+        <!-- Left: Visual Image Menu Display (col-12 col-lg-7) -->
+        <div class="col-12 col-lg-7">
+            <div class="pos-card h-100 d-flex flex-column">
+                <div class="pos-card-header bg-light pb-2">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 w-100">
+                        <span class="pos-card-title">
+                            <i class="bi bi-grid-fill text-primary me-2"></i>Menu Catalogue
+                        </span>
+                        <!-- Compact Search Bar -->
+                        <div class="input-group input-group-sm" style="max-width: 220px;">
+                            <span class="input-group-text bg-white border-end-0">
+                                <i class="bi bi-search text-muted"></i>
+                            </span>
+                            <input 
+                                type="text" 
+                                id="menuItemSearch" 
+                                class="form-control pos-form-control border-start-0" 
+                                placeholder="Search dishes..."
+                                autocomplete="off"
+                            >
+                        </div>
+                    </div>
                 </div>
-                <div class="pos-card-body">
-                    <div id="itemsContainer">
-                        <div class="order-item order-item-row">
-                            <div class="row g-2 align-items-center">
-                                <div class="col-12 col-md-6">
-                                    <label class="form-label pos-form-label mb-1">Menu Item</label>
-                                    <select name="menu_item_id[]" class="form-select pos-form-control menu-item-select" required onchange="updateRowCalculations(this)">
-                                        <option value="" data-price="0">-- Select Menu Item --</option>
-                                        <?php mysqli_data_seek($menu_items, 0); ?>
-                                        <?php while ($item = mysqli_fetch_assoc($menu_items)) { ?>
-                                            <option value="<?php echo $item["id"]; ?>" data-price="<?php echo $item["price"]; ?>">
-                                                <?php echo htmlspecialchars($item["name"], ENT_QUOTES, 'UTF-8'); ?> (Rs. <?php echo number_format($item["price"], 2); ?>)
-                                            </option>
-                                        <?php } ?>
-                                    </select>
+
+                <div class="pos-card-body p-3 d-flex flex-column flex-grow-1">
+                    <!-- Compact Category Filter Pills -->
+                    <div class="d-flex align-items-center gap-1 overflow-auto pb-2 mb-3" id="categoryFilterPills" style="scrollbar-width: thin;">
+                        <button type="button" class="btn btn-sm btn-primary pos-cat-pill active" data-category="all">
+                            All (<?php echo count($available_menu_items); ?>)
+                        </button>
+                        <?php foreach ($menu_categories as $cat) { ?>
+                            <button type="button" class="btn btn-sm btn-outline-secondary pos-cat-pill" data-category="<?php echo htmlspecialchars(mb_strtolower($cat), ENT_QUOTES, 'UTF-8'); ?>">
+                                <?php echo htmlspecialchars($cat, ENT_QUOTES, 'UTF-8'); ?>
+                            </button>
+                        <?php } ?>
+                    </div>
+
+                    <!-- Scrollable Visual Menu Cards Grid -->
+                    <div class="pos-menu-scroll-container flex-grow-1">
+                        <div class="row g-2" id="menuCardsContainer">
+                            <?php foreach ($available_menu_items as $item) {
+                                $has_img = !empty($item['image']) && file_exists(dirname(__DIR__) . '/assets/uploads/menu/' . $item['image']);
+                                $cat_clean = mb_strtolower(trim($item['category'] ?? ''));
+                                $name_clean = mb_strtolower($item['name']);
+                            ?>
+                                <div class="col-6 col-sm-4 menu-item-card-col" 
+                                     data-name="<?php echo htmlspecialchars($name_clean, ENT_QUOTES, 'UTF-8'); ?>"
+                                     data-category="<?php echo htmlspecialchars($cat_clean, ENT_QUOTES, 'UTF-8'); ?>">
+                                    <div class="pos-menu-card h-100" 
+                                         onclick="addToCart(<?php echo (int)$item['id']; ?>, <?php echo htmlspecialchars(json_encode($item['name']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo (float)$item['price']; ?>)"
+                                         role="button"
+                                         tabindex="0"
+                                         title="Click to add <?php echo htmlspecialchars($item['name'], ENT_QUOTES, 'UTF-8'); ?>">
+                                        <div class="pos-menu-card-img-wrap">
+                                            <?php if ($has_img) { ?>
+                                                <img src="../assets/uploads/menu/<?php echo htmlspecialchars($item['image'], ENT_QUOTES, 'UTF-8'); ?>" 
+                                                     alt="<?php echo htmlspecialchars($item['name'], ENT_QUOTES, 'UTF-8'); ?>" 
+                                                     class="pos-menu-card-img" 
+                                                     loading="lazy">
+                                            <?php } else { ?>
+                                                <div class="pos-menu-card-placeholder">
+                                                    <i class="bi bi-egg-fried fs-2 text-secondary opacity-50"></i>
+                                                </div>
+                                            <?php } ?>
+                                            <?php if (!empty($item['category'])) { ?>
+                                                <span class="badge bg-dark bg-opacity-75 position-absolute top-0 start-0 m-1" style="font-size: 0.68rem; font-weight: 500;">
+                                                    <?php echo htmlspecialchars($item['category'], ENT_QUOTES, 'UTF-8'); ?>
+                                                </span>
+                                            <?php } ?>
+                                        </div>
+                                        <div class="pos-menu-card-body">
+                                            <div class="pos-menu-card-title"><?php echo htmlspecialchars($item['name'], ENT_QUOTES, 'UTF-8'); ?></div>
+                                            <div class="d-flex align-items-center justify-content-between mt-auto pt-1">
+                                                <span class="pos-menu-card-price">Rs. <?php echo number_format($item['price'], 2); ?></span>
+                                                <span class="btn btn-sm btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.72rem;">
+                                                    <i class="bi bi-plus"></i> Add
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="col-6 col-md-3">
-                                    <label class="form-label pos-form-label mb-1">Quantity</label>
-                                    <input type="number" name="quantity[]" min="1" value="1" class="form-control pos-form-control item-quantity" required oninput="updateRowCalculations(this)">
-                                </div>
-                                <div class="col-4 col-md-2 text-md-end">
-                                    <label class="form-label pos-form-label mb-1">Subtotal</label>
-                                    <div class="fw-semibold text-dark line-subtotal py-1">Rs. 0.00</div>
-                                </div>
-                                <div class="col-2 col-md-1 text-end">
-                                    <label class="form-label pos-form-label mb-1 d-none d-md-block">&nbsp;</label>
-                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeItem(this)" title="Remove item">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                            </div>
+                            <?php } ?>
+                        </div>
+
+                        <!-- No Search Results Found Row -->
+                        <div id="noCardsFoundMessage" class="text-center text-muted p-5 d-none">
+                            <i class="bi bi-search fs-2 d-block mb-2 text-secondary opacity-50"></i>
+                            <span>No dishes found matching your search.</span>
                         </div>
                     </div>
 
-                    <div class="mt-3">
-                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="addItem()">
-                            <i class="bi bi-plus-lg me-1"></i>Add Another Item
-                        </button>
+                    <div class="text-muted small mt-2 pt-2 border-top d-flex align-items-center justify-content-between">
+                        <span><i class="bi bi-info-circle me-1"></i>Click card to add. Repeated clicks increase quantity.</span>
+                        <span class="fw-semibold text-secondary" id="filteredItemCount"><?php echo count($available_menu_items); ?> dishes</span>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Sidebar: Order Parameters & Action -->
-        <div class="col-12 col-lg-4">
-            <div class="pos-card mb-4">
-                <div class="pos-card-header">
+        <!-- Right: Service Details & Order Basket (col-12 col-lg-5) -->
+        <div class="col-12 col-lg-5">
+            <!-- Service & Guest Card -->
+            <div class="pos-card mb-3">
+                <div class="pos-card-header bg-light">
                     <span class="pos-card-title"><i class="bi bi-info-circle me-2 text-primary"></i>Service &amp; Guest</span>
                 </div>
-                <div class="pos-card-body">
+                <div class="pos-card-body p-3">
                     <!-- Customer -->
-                    <div class="mb-3">
-                        <label for="customerId" class="form-label pos-form-label">Customer</label>
-                        <select name="customer_id" id="customerId" class="form-select pos-form-control">
+                    <div class="mb-2">
+                        <label for="customerId" class="form-label pos-form-label mb-1">Customer</label>
+                        <select name="customer_id" id="customerId" class="form-select pos-form-control py-1 fs-6">
                             <option value="">Walk-in Customer</option>
                             <?php mysqli_data_seek($customers, 0); ?>
                             <?php while ($customer = mysqli_fetch_assoc($customers)) { ?>
-                                <option value="<?php echo $customer["id"]; ?>">
+                                <option value="<?php echo $customer["id"]; ?>" <?php if ($posted_cust_id == $customer["id"]) echo "selected"; ?>>
                                     <?php echo htmlspecialchars($customer["name"], ENT_QUOTES, 'UTF-8'); ?><?php if (!empty($customer["phone"])) { echo " - " . htmlspecialchars($customer["phone"], ENT_QUOTES, 'UTF-8'); } ?>
                                 </option>
                             <?php } ?>
@@ -500,71 +586,92 @@ require_once "../includes/header.php";
                     </div>
 
                     <!-- Order Type -->
-                    <div class="mb-3">
-                        <label for="orderType" class="form-label pos-form-label">Order Type <span class="text-danger">*</span></label>
-                        <select name="order_type" id="orderType" class="form-select pos-form-control" required>
+                    <div class="mb-2">
+                        <label for="orderType" class="form-label pos-form-label mb-1">Order Type <span class="text-danger">*</span></label>
+                        <select name="order_type" id="orderType" class="form-select pos-form-control py-1 fs-6" required>
                             <option value="">-- Select Order Type --</option>
-                            <option value="dine_in">Dine In</option>
-                            <option value="delivery">Delivery</option>
-                            <option value="pickup">Pickup</option>
+                            <option value="dine_in" <?php if ($posted_order_type === "dine_in") echo "selected"; ?>>Dine In</option>
+                            <option value="delivery" <?php if ($posted_order_type === "delivery") echo "selected"; ?>>Delivery</option>
+                            <option value="pickup" <?php if ($posted_order_type === "pickup") echo "selected"; ?>>Pickup</option>
                         </select>
                     </div>
 
-                    <!-- Dining Table -->
-                    <div id="tableSection" class="mb-3" style="display: none;">
-                        <label for="tableId" class="form-label pos-form-label">Dining Table <span class="text-danger">*</span></label>
-                        <select name="table_id" id="tableId" class="form-select pos-form-control">
+                    <!-- Dining Table (conditional) -->
+                    <div id="tableSection" class="mb-2" style="<?php echo ($posted_order_type === 'dine_in') ? 'display: block;' : 'display: none;'; ?>">
+                        <label for="tableId" class="form-label pos-form-label mb-1">Dining Table <span class="text-danger">*</span></label>
+                        <select name="table_id" id="tableId" class="form-select pos-form-control py-1 fs-6">
                             <option value="">-- Select Table --</option>
                             <?php mysqli_data_seek($tables, 0); ?>
                             <?php while ($table = mysqli_fetch_assoc($tables)) { ?>
-                                <option value="<?php echo $table["id"]; ?>">
+                                <option value="<?php echo $table["id"]; ?>" <?php if ($posted_table_id == $table["id"]) echo "selected"; ?>>
                                     Table <?php echo htmlspecialchars($table["table_number"], ENT_QUOTES, 'UTF-8'); ?> (Capacity: <?php echo htmlspecialchars($table["capacity"], ENT_QUOTES, 'UTF-8'); ?>)
                                 </option>
                             <?php } ?>
                         </select>
-                        <small class="text-muted d-block mt-1">Available dining tables only.</small>
+                        <small class="text-muted d-block">Available dining tables only.</small>
                     </div>
 
                     <!-- Waiter Assignment -->
-                    <div class="mb-3">
+                    <div class="mb-0">
                         <?php if ($_SESSION["role"] === "admin") { ?>
-                            <label for="waiterId" class="form-label pos-form-label">Assigned Waiter <span class="text-danger">*</span></label>
-                            <select name="waiter_id" id="waiterId" class="form-select pos-form-control" required>
+                            <label for="waiterId" class="form-label pos-form-label mb-1">Assigned Waiter <span class="text-danger">*</span></label>
+                            <select name="waiter_id" id="waiterId" class="form-select pos-form-control py-1 fs-6" required>
                                 <option value="">-- Select Waiter --</option>
                                 <?php mysqli_data_seek($waiters, 0); ?>
                                 <?php while ($waiter = mysqli_fetch_assoc($waiters)) { ?>
-                                    <option value="<?php echo $waiter["id"]; ?>">
+                                    <option value="<?php echo $waiter["id"]; ?>" <?php if ($posted_waiter_id == $waiter["id"]) echo "selected"; ?>>
                                         <?php echo htmlspecialchars($waiter["name"], ENT_QUOTES, 'UTF-8'); ?>
                                     </option>
                                 <?php } ?>
                             </select>
                         <?php } else { ?>
-                            <label class="form-label pos-form-label">Assigned Waiter</label>
-                            <div class="input-group">
+                            <label class="form-label pos-form-label mb-1">Assigned Waiter</label>
+                            <div class="input-group input-group-sm">
                                 <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-person-badge"></i></span>
-                                <input type="text" class="form-control pos-form-control bg-light border-start-0" value="<?php echo htmlspecialchars($_SESSION["user_name"], ENT_QUOTES, 'UTF-8'); ?>" readonly>
+                                <input type="text" class="form-control pos-form-control bg-light border-start-0 py-1" value="<?php echo htmlspecialchars($_SESSION["user_name"], ENT_QUOTES, 'UTF-8'); ?>" readonly>
                             </div>
                         <?php } ?>
                     </div>
                 </div>
             </div>
 
-            <!-- Order Total & Submit Card -->
-            <div class="pos-card">
-                <div class="pos-card-body">
-                    <div class="order-summary-box mb-3">
+            <!-- Current Order Basket Card -->
+            <div class="pos-card shadow-sm">
+                <div class="pos-card-header bg-light d-flex align-items-center justify-content-between">
+                    <span class="pos-card-title">
+                        <i class="bi bi-receipt me-2 text-primary"></i>Order Ticket
+                    </span>
+                    <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" onclick="clearCart()" title="Empty basket">
+                        <i class="bi bi-trash"></i> Clear
+                    </button>
+                </div>
+                <div class="pos-card-body p-3">
+                    <!-- Selected Cart Items Container -->
+                    <div id="cartItemsContainer" style="max-height: 290px; overflow-y: auto; padding-right: 2px;">
+                        <!-- Dynamically populated by JavaScript -->
+                    </div>
+
+                    <!-- Empty Cart Notice -->
+                    <div id="emptyCartNotice" class="text-center text-muted p-4 border rounded bg-light mb-3">
+                        <i class="bi bi-basket3 fs-2 d-block mb-1 text-secondary opacity-50"></i>
+                        <span class="small">Ticket is empty.<br>Click dishes on the left to add items.</span>
+                    </div>
+
+                    <!-- Order Summary Box -->
+                    <div class="order-summary-box my-3 p-2 bg-light rounded border">
                         <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="text-muted small">Items Count:</span>
+                            <span class="text-muted small">Total Items:</span>
                             <span id="summaryItemCount" class="fw-semibold text-dark">0</span>
                         </div>
-                        <hr class="my-2 border-secondary-subtle">
+                        <hr class="my-1 border-secondary-subtle">
                         <div class="d-flex justify-content-between align-items-center">
                             <span class="fw-bold text-dark">Total Amount:</span>
                             <span id="summaryTotal" class="fs-4 fw-bold text-primary">Rs. 0.00</span>
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm">
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm" id="submitOrderBtn">
                         <i class="bi bi-check2-circle fs-5"></i>
                         <span>Create Order</span>
                     </button>
@@ -575,7 +682,13 @@ require_once "../includes/header.php";
 </form>
 
 <script>
+// Cart state: object keyed by menu_item_id -> { id, name, price, quantity }
+let cart = {};
+
+const prefillData = <?php echo json_encode($prefill_cart_items); ?>;
+
 document.addEventListener('DOMContentLoaded', function () {
+    // 1. Dining Table conditional toggle
     const orderType = document.getElementById("orderType");
     const tableSection = document.getElementById("tableSection");
     const tableSelect = document.getElementById("tableId");
@@ -591,95 +704,260 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    recalcAll();
-});
+    // 2. Search & Category Filters
+    const searchInput = document.getElementById('menuItemSearch');
+    const categoryButtons = document.querySelectorAll('#categoryFilterPills button');
+    const cardCols = document.querySelectorAll('.menu-item-card-col');
+    const noCardsFound = document.getElementById('noCardsFoundMessage');
+    const filteredCountLabel = document.getElementById('filteredItemCount');
+    let currentCategory = 'all';
 
-function updateRowCalculations(element) {
-    const row = element.closest('.order-item');
-    if (!row) return;
+    function filterMenuCards() {
+        const query = (searchInput.value || '').trim().toLowerCase();
+        let visibleCount = 0;
 
-    const select = row.querySelector('.menu-item-select');
-    const qtyInput = row.querySelector('.item-quantity');
-    const subtotalDisplay = row.querySelector('.line-subtotal');
+        cardCols.forEach(function (col) {
+            const name = col.getAttribute('data-name') || '';
+            const cat = col.getAttribute('data-category') || '';
 
-    const selectedOption = select.options[select.selectedIndex];
-    const price = selectedOption ? parseFloat(selectedOption.getAttribute('data-price') || 0) : 0;
-    const qty = parseInt(qtyInput.value) || 0;
-    const subtotal = price * qty;
+            const matchesQuery = !query || name.includes(query) || cat.includes(query);
+            const matchesCat = (currentCategory === 'all') || (cat === currentCategory);
 
-    if (subtotalDisplay) {
-        subtotalDisplay.textContent = 'Rs. ' + subtotal.toFixed(2);
-    }
+            if (matchesQuery && matchesCat) {
+                col.classList.remove('d-none');
+                visibleCount++;
+            } else {
+                col.classList.add('d-none');
+            }
+        });
 
-    recalcAll();
-}
-
-function recalcAll() {
-    let grandTotal = 0;
-    let totalItems = 0;
-
-    const rows = document.querySelectorAll('.order-item');
-    rows.forEach(function (row) {
-        const select = row.querySelector('.menu-item-select');
-        const qtyInput = row.querySelector('.item-quantity');
-        const subtotalDisplay = row.querySelector('.line-subtotal');
-
-        const selectedOption = select ? select.options[select.selectedIndex] : null;
-        const price = selectedOption ? parseFloat(selectedOption.getAttribute('data-price') || 0) : 0;
-        const qty = qtyInput ? (parseInt(qtyInput.value) || 0) : 0;
-        const subtotal = price * qty;
-
-        if (subtotalDisplay) {
-            subtotalDisplay.textContent = 'Rs. ' + subtotal.toFixed(2);
+        if (filteredCountLabel) {
+            filteredCountLabel.textContent = visibleCount + ' dishes';
         }
 
-        if (price > 0 && qty > 0) {
-            grandTotal += subtotal;
-            totalItems += qty;
+        if (noCardsFound) {
+            if (visibleCount === 0) {
+                noCardsFound.classList.remove('d-none');
+            } else {
+                noCardsFound.classList.add('d-none');
+            }
+        }
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener('input', filterMenuCards);
+    }
+
+    categoryButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            categoryButtons.forEach(b => {
+                b.classList.remove('btn-primary', 'active');
+                b.classList.add('btn-outline-secondary');
+            });
+            this.classList.remove('btn-outline-secondary');
+            this.classList.add('btn-primary', 'active');
+            currentCategory = this.getAttribute('data-category') || 'all';
+            filterMenuCards();
+        });
+    });
+
+    // 3. Prepopulate cart on page load (if any previous items on validation failure)
+    if (prefillData && prefillData.length) {
+        prefillData.forEach(function (item) {
+            cart[item.id] = {
+                id: item.id,
+                name: item.name,
+                price: parseFloat(item.price),
+                quantity: parseInt(item.quantity) || 1
+            };
+        });
+    }
+
+    renderCart();
+
+    // 4. Form validation on submit
+    const createOrderForm = document.getElementById('createOrderForm');
+    if (createOrderForm) {
+        createOrderForm.addEventListener('submit', function (e) {
+            if (Object.keys(cart).length === 0) {
+                e.preventDefault();
+                alert('Please add at least one menu item to the order ticket before submitting.');
+            }
+        });
+    }
+});
+
+// Add item or increment quantity on card click
+function addToCart(id, name, price) {
+    if (cart[id]) {
+        cart[id].quantity += 1;
+    } else {
+        cart[id] = {
+            id: id,
+            name: name,
+            price: parseFloat(price),
+            quantity: 1
+        };
+    }
+    renderCart();
+}
+
+// Quantity step (-1 or +1)
+function stepItemQty(id, delta) {
+    if (!cart[id]) return;
+    const newQty = cart[id].quantity + delta;
+    if (newQty <= 0) {
+        delete cart[id];
+    } else {
+        cart[id].quantity = newQty;
+    }
+    renderCart();
+}
+
+// Direct numeric input handler
+function onQtyInput(id, value) {
+    if (!cart[id]) return;
+    const parsed = parseInt(value, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+        cart[id].quantity = parsed;
+        updateTotalsOnly();
+    }
+}
+
+// On blur, normalize or remove if invalid
+function onQtyBlur(id, inputElement) {
+    if (!cart[id]) return;
+    const parsed = parseInt(inputElement.value, 10);
+    if (isNaN(parsed) || parsed <= 0) {
+        delete cart[id];
+        renderCart();
+    } else {
+        cart[id].quantity = parsed;
+        renderCart();
+    }
+}
+
+// Remove single item from cart
+function removeFromCart(id) {
+    if (cart[id]) {
+        delete cart[id];
+        renderCart();
+    }
+}
+
+// Clear all items from cart
+function clearCart() {
+    if (Object.keys(cart).length === 0) return;
+    if (confirm('Clear all items from this order ticket?')) {
+        cart = {};
+        renderCart();
+    }
+}
+
+// Quick recalculation without re-rendering entire DOM
+function updateTotalsOnly() {
+    let totalItems = 0;
+    let grandTotal = 0;
+
+    Object.values(cart).forEach(function (item) {
+        const subtotal = item.price * item.quantity;
+        totalItems += item.quantity;
+        grandTotal += subtotal;
+
+        const subtotalElem = document.getElementById('line-subtotal-' + item.id);
+        if (subtotalElem) {
+            subtotalElem.textContent = 'Rs. ' + subtotal.toFixed(2);
         }
     });
 
-    const summaryTotal = document.getElementById('summaryTotal');
     const summaryItemCount = document.getElementById('summaryItemCount');
-
-    if (summaryTotal) summaryTotal.textContent = 'Rs. ' + grandTotal.toFixed(2);
+    const summaryTotal = document.getElementById('summaryTotal');
     if (summaryItemCount) summaryItemCount.textContent = totalItems.toString();
+    if (summaryTotal) summaryTotal.textContent = 'Rs. ' + grandTotal.toFixed(2);
 }
 
-function addItem() {
-    const container = document.getElementById("itemsContainer");
-    const firstItem = document.querySelector(".order-item");
-    if (!container || !firstItem) return;
+// Render full cart DOM
+function renderCart() {
+    const container = document.getElementById('cartItemsContainer');
+    const emptyNotice = document.getElementById('emptyCartNotice');
+    if (!container) return;
 
-    const newItem = firstItem.cloneNode(true);
-    const select = newItem.querySelector('select[name="menu_item_id[]"]');
-    const qty = newItem.querySelector('input[name="quantity[]"]');
-    const subtotal = newItem.querySelector('.line-subtotal');
+    const items = Object.values(cart);
 
-    if (select) select.value = "";
-    if (qty) qty.value = 1;
-    if (subtotal) subtotal.textContent = "Rs. 0.00";
-
-    container.appendChild(newItem);
-    recalcAll();
-}
-
-function removeItem(btn) {
-    const rows = document.querySelectorAll('.order-item');
-    const row = btn.closest('.order-item');
-    if (!row) return;
-
-    if (rows.length > 1) {
-        row.remove();
-    } else {
-        const select = row.querySelector('.menu-item-select');
-        const qty = row.querySelector('.item-quantity');
-        const subtotal = row.querySelector('.line-subtotal');
-        if (select) select.value = "";
-        if (qty) qty.value = 1;
-        if (subtotal) subtotal.textContent = "Rs. 0.00";
+    if (items.length === 0) {
+        container.innerHTML = '';
+        if (emptyNotice) emptyNotice.classList.remove('d-none');
+        updateTotalsOnly();
+        return;
     }
-    recalcAll();
+
+    if (emptyNotice) emptyNotice.classList.add('d-none');
+
+    let html = '';
+    let totalItems = 0;
+    let grandTotal = 0;
+
+    items.forEach(function (item) {
+        const subtotal = item.price * item.quantity;
+        totalItems += item.quantity;
+        grandTotal += subtotal;
+
+        html += `
+            <div class="cart-item-row" id="cart-row-${item.id}">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <div class="fw-semibold text-dark text-truncate me-2" style="font-size: 0.88rem;" title="${escapeHtml(item.name)}">
+                        ${escapeHtml(item.name)}
+                    </div>
+                    <button type="button" class="btn btn-link text-danger p-0 border-0" onclick="removeFromCart(${item.id})" title="Remove item">
+                        <i class="bi bi-x-circle fs-6"></i>
+                    </button>
+                </div>
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="text-muted small">
+                        Rs. ${item.price.toFixed(2)}
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <button type="button" class="cart-qty-btn" onclick="stepItemQty(${item.id}, -1)" title="Decrease quantity">-</button>
+                        <input type="number" 
+                               name="quantity[]" 
+                               id="qty-input-${item.id}" 
+                               value="${item.quantity}" 
+                               min="1" 
+                               class="cart-qty-input" 
+                               oninput="onQtyInput(${item.id}, this.value)"
+                               onblur="onQtyBlur(${item.id}, this)">
+                        <button type="button" class="cart-qty-btn" onclick="stepItemQty(${item.id}, 1)" title="Increase quantity">+</button>
+                    </div>
+                    <div class="fw-bold text-dark text-end line-subtotal" id="line-subtotal-${item.id}" style="min-width: 75px;">
+                        Rs. ${subtotal.toFixed(2)}
+                    </div>
+                </div>
+                <input type="hidden" name="menu_item_id[]" value="${item.id}">
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+
+    const summaryItemCount = document.getElementById('summaryItemCount');
+    const summaryTotal = document.getElementById('summaryTotal');
+    if (summaryItemCount) summaryItemCount.textContent = totalItems.toString();
+    if (summaryTotal) summaryTotal.textContent = 'Rs. ' + grandTotal.toFixed(2);
+}
+
+function escapeHtml(string) {
+    return String(string).replace(/[&<>"'`=\/]/g, function (s) {
+        return ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+            '/': '&#x2F;',
+            '`': '&#x60;',
+            '=': '&#x3D;'
+        })[s];
+    });
 }
 </script>
 

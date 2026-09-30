@@ -23,39 +23,109 @@ if (!$item) {
     die("Menu item not found.");
 }
 
+$error = "";
+
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $name = $_POST["name"];
-    $category = $_POST["category"];
-    $price = $_POST["price"];
-    $is_available = $_POST["is_available"];
+    $name = trim($_POST["name"] ?? "");
+    $category = trim($_POST["category"] ?? "");
+    $price = $_POST["price"] ?? "";
+    $is_available = $_POST["is_available"] ?? "1";
+    $remove_image = !empty($_POST["remove_image"]);
 
-    $sql = "UPDATE menu_items
-            SET name = ?, category = ?, price = ?, is_available = ?
-            WHERE id = ?";
+    $new_image_filename = $item["image"];
+    $old_image_to_delete = null;
 
-    $stmt = mysqli_prepare($conn, $sql);
+    if ($name === "") {
+        $error = "Please enter an item name.";
+    } elseif ($price === "" || !is_numeric($price) || (float)$price < 0) {
+        $error = "Please enter a valid price.";
+    }
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        "ssdii",
-        $name,
-        $category,
-        $price,
-        $is_available,
-        $id
-    );
+    if ($error === "" && isset($_FILES["image"]) && $_FILES["image"]["error"] !== UPLOAD_ERR_NO_FILE) {
+        if ($_FILES["image"]["error"] !== UPLOAD_ERR_OK) {
+            $error = "File upload failed with error code: " . (int)$_FILES["image"]["error"];
+        } elseif ($_FILES["image"]["size"] > 3 * 1024 * 1024) {
+            $error = "Image size cannot exceed 3MB.";
+        } else {
+            $allowed_mimes = ["image/jpeg", "image/png", "image/webp"];
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mime = finfo_file($finfo, $_FILES["image"]["tmp_name"]);
+            finfo_close($finfo);
 
-    mysqli_stmt_execute($stmt);
+            $ext = strtolower(pathinfo($_FILES["image"]["name"], PATHINFO_EXTENSION));
+            $allowed_exts = ["jpg", "jpeg", "png", "webp"];
 
-    header("Location: index.php");
-    exit;
+            if (!in_array($mime, $allowed_mimes) || !in_array($ext, $allowed_exts)) {
+                $error = "Only JPG, PNG, and WebP images are allowed.";
+            } else {
+                $upload_dir = dirname(__DIR__) . "/assets/uploads/menu/";
+                if (!is_dir($upload_dir)) {
+                    mkdir($upload_dir, 0755, true);
+                }
+
+                $uploaded_filename = "menu_" . bin2hex(random_bytes(8)) . "_" . time() . "." . $ext;
+                $dest_path = $upload_dir . $uploaded_filename;
+
+                if (!move_uploaded_file($_FILES["image"]["tmp_name"], $dest_path)) {
+                    $error = "Failed to save the uploaded image file.";
+                } else {
+                    $new_image_filename = $uploaded_filename;
+                    if (!empty($item["image"])) {
+                        $old_image_to_delete = $item["image"];
+                    }
+                }
+            }
+        }
+    } elseif ($error === "" && $remove_image) {
+        $new_image_filename = null;
+        if (!empty($item["image"])) {
+            $old_image_to_delete = $item["image"];
+        }
+    }
+
+    if ($error === "") {
+        $sql = "UPDATE menu_items
+                SET name = ?, category = ?, price = ?, is_available = ?, image = ?
+                WHERE id = ?";
+
+        $stmt = mysqli_prepare($conn, $sql);
+
+        mysqli_stmt_bind_param(
+            $stmt,
+            "ssdisi",
+            $name,
+            $category,
+            $price,
+            $is_available,
+            $new_image_filename,
+            $id
+        );
+
+        if (mysqli_stmt_execute($stmt)) {
+            // Only delete the old physical image after the database update succeeds
+            if (!empty($old_image_to_delete) && $old_image_to_delete !== $new_image_filename) {
+                $old_file_path = dirname(__DIR__) . "/assets/uploads/menu/" . $old_image_to_delete;
+                if (file_exists($old_file_path)) {
+                    @unlink($old_file_path);
+                }
+            }
+
+            header("Location: index.php");
+            exit;
+        } else {
+            $error = "Failed to update menu item: " . mysqli_error($conn);
+        }
+    }
 }
 
 $page_title = "Edit Menu Item #" . $id;
 $active_menu = "menu";
 
 require_once "../includes/header.php";
+
+$existing_image_file = !empty($item["image"]) ? dirname(__DIR__) . "/assets/uploads/menu/" . $item["image"] : null;
+$has_existing_image = $existing_image_file && file_exists($existing_image_file);
 ?>
 
 <!-- Page Header Bar -->
@@ -72,6 +142,13 @@ require_once "../includes/header.php";
     </div>
 </div>
 
+<?php if ($error !== "") { ?>
+    <div class="alert alert-danger d-flex align-items-center py-2 px-3 mb-3 border-danger-subtle" role="alert">
+        <i class="bi bi-exclamation-triangle-fill text-danger me-2 fs-5"></i>
+        <div class="small fw-medium"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></div>
+    </div>
+<?php } ?>
+
 <div class="row justify-content-center">
     <div class="col-12 col-md-8 col-lg-6">
         <div class="pos-card shadow-sm">
@@ -82,7 +159,7 @@ require_once "../includes/header.php";
                 <span class="badge bg-white text-muted border">ID #<?php echo $id; ?></span>
             </div>
             <div class="pos-card-body p-4">
-                <form method="POST">
+                <form method="POST" enctype="multipart/form-data">
                     <!-- Item Name -->
                     <div class="mb-3">
                         <label for="itemName" class="form-label pos-form-label">
@@ -97,7 +174,7 @@ require_once "../includes/header.php";
                                 class="form-control pos-form-control border-start-0 py-2"
                                 id="itemName"
                                 name="name"
-                                value="<?php echo htmlspecialchars($item["name"], ENT_QUOTES, 'UTF-8'); ?>"
+                                value="<?php echo htmlspecialchars($_POST["name"] ?? $item["name"], ENT_QUOTES, 'UTF-8'); ?>"
                                 required
                             >
                         </div>
@@ -118,7 +195,7 @@ require_once "../includes/header.php";
                                 class="form-control pos-form-control border-start-0 py-2"
                                 id="itemCategory"
                                 name="category"
-                                value="<?php echo htmlspecialchars($item["category"] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                value="<?php echo htmlspecialchars($_POST["category"] ?? ($item["category"] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                             >
                         </div>
                         <div class="form-text text-muted small">Groups similar items together on the POS screen.</div>
@@ -138,11 +215,55 @@ require_once "../includes/header.php";
                                 name="price"
                                 step="0.01"
                                 min="0"
-                                value="<?php echo htmlspecialchars($item["price"], ENT_QUOTES, 'UTF-8'); ?>"
+                                value="<?php echo htmlspecialchars($_POST["price"] ?? $item["price"], ENT_QUOTES, 'UTF-8'); ?>"
                                 required
                             >
                         </div>
                         <div class="form-text text-muted small">Customer billing rate per unit.</div>
+                    </div>
+
+                    <!-- Current Image & Upload -->
+                    <div class="mb-3">
+                        <label class="form-label pos-form-label">Item Photo / Image</label>
+                        <?php if ($has_existing_image) { ?>
+                            <div class="d-flex align-items-center gap-3 p-2 border rounded bg-light mb-2">
+                                <img src="../assets/uploads/menu/<?php echo htmlspecialchars($item['image'], ENT_QUOTES, 'UTF-8'); ?>" 
+                                     alt="Current Image" 
+                                     class="rounded border object-fit-cover" 
+                                     style="width: 72px; height: 72px;">
+                                <div>
+                                    <div class="small fw-semibold text-dark mb-1">Current Image</div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="remove_image" value="1" id="removeImageCheck">
+                                        <label class="form-check-label small text-danger" for="removeImageCheck">
+                                            Remove image (switch to placeholder)
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php } else { ?>
+                            <div class="text-muted small mb-2 d-flex align-items-center gap-2 p-2 border rounded bg-light">
+                                <i class="bi bi-card-image fs-4 text-secondary"></i>
+                                <span>No photo uploaded yet. A clean placeholder is displayed on the POS screen.</span>
+                            </div>
+                        <?php } ?>
+
+                        <label for="itemImage" class="form-label small text-muted mb-1">
+                            <?php echo $has_existing_image ? 'Replace Photo (Optional):' : 'Upload Photo:'; ?>
+                        </label>
+                        <input
+                            type="file"
+                            class="form-control pos-form-control"
+                            id="itemImage"
+                            name="image"
+                            accept=".jpg,.jpeg,.png,.webp"
+                            onchange="previewImage(this)"
+                        >
+                        <div class="form-text text-muted small">Allowed formats: JPG, PNG, WebP (max 3MB).</div>
+                        <div id="imagePreviewContainer" class="mt-2 d-none">
+                            <span class="small text-muted d-block mb-1">New Image Preview:</span>
+                            <img id="imagePreview" src="#" alt="Preview" class="rounded border object-fit-cover" style="width: 80px; height: 80px;">
+                        </div>
                     </div>
 
                     <!-- Availability Status -->
@@ -151,10 +272,10 @@ require_once "../includes/header.php";
                             Availability Status <span class="text-danger">*</span>
                         </label>
                         <select name="is_available" id="itemAvailability" class="form-select pos-form-control py-2" required>
-                            <option value="1" <?php if ($item["is_available"] == 1) echo "selected"; ?>>
+                            <option value="1" <?php if (($item["is_available"] ?? 1) == 1) echo "selected"; ?>>
                                 Available (Active &amp; ready for order taking)
                             </option>
-                            <option value="0" <?php if ($item["is_available"] == 0) echo "selected"; ?>>
+                            <option value="0" <?php if (($item["is_available"] ?? 1) == 0) echo "selected"; ?>>
                                 Unavailable (Temporarily sold out or out of stock)
                             </option>
                         </select>
@@ -185,6 +306,24 @@ require_once "../includes/header.php";
         </div>
     </div>
 </div>
+
+<script>
+function previewImage(input) {
+    const previewContainer = document.getElementById('imagePreviewContainer');
+    const preview = document.getElementById('imagePreview');
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            previewContainer.classList.remove('d-none');
+        };
+        reader.readAsDataURL(input.files[0]);
+    } else {
+        previewContainer.classList.add('d-none');
+        preview.src = '#';
+    }
+}
+</script>
 
 <?php
 

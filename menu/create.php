@@ -5,32 +5,77 @@ require_once "../includes/role.php";
 
 requireRole(["admin"]);
 
+$error = "";
+
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $name = $_POST["name"];
-    $category = $_POST["category"];
-    $price = $_POST["price"];
-    $is_available = $_POST["is_available"];
+    $name = trim($_POST["name"] ?? "");
+    $category = trim($_POST["category"] ?? "");
+    $price = $_POST["price"] ?? "";
+    $is_available = $_POST["is_available"] ?? "1";
+    $image_filename = null;
 
-    $sql = "INSERT INTO menu_items
-            (name, category, price, is_available)
-            VALUES (?, ?, ?, ?)";
+    if ($name === "") {
+        $error = "Please enter an item name.";
+    } elseif ($price === "" || !is_numeric($price) || (float)$price < 0) {
+        $error = "Please enter a valid price.";
+    }
 
-    $stmt = mysqli_prepare($conn, $sql);
+    if ($error === "" && isset($_FILES["image"]) && $_FILES["image"]["error"] !== UPLOAD_ERR_NO_FILE) {
+        if ($_FILES["image"]["error"] !== UPLOAD_ERR_OK) {
+            $error = "File upload failed with error code: " . (int)$_FILES["image"]["error"];
+        } elseif ($_FILES["image"]["size"] > 3 * 1024 * 1024) {
+            $error = "Image size cannot exceed 3MB.";
+        } else {
+            $allowed_mimes = ["image/jpeg", "image/png", "image/webp"];
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mime = finfo_file($finfo, $_FILES["image"]["tmp_name"]);
+            finfo_close($finfo);
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        "ssdi",
-        $name,
-        $category,
-        $price,
-        $is_available
-    );
+            $ext = strtolower(pathinfo($_FILES["image"]["name"], PATHINFO_EXTENSION));
+            $allowed_exts = ["jpg", "jpeg", "png", "webp"];
 
-    mysqli_stmt_execute($stmt);
+            if (!in_array($mime, $allowed_mimes) || !in_array($ext, $allowed_exts)) {
+                $error = "Only JPG, PNG, and WebP images are allowed.";
+            } else {
+                $upload_dir = dirname(__DIR__) . "/assets/uploads/menu/";
+                if (!is_dir($upload_dir)) {
+                    mkdir($upload_dir, 0755, true);
+                }
 
-    header("Location: index.php");
-    exit;
+                $image_filename = "menu_" . bin2hex(random_bytes(8)) . "_" . time() . "." . $ext;
+                $dest_path = $upload_dir . $image_filename;
+
+                if (!move_uploaded_file($_FILES["image"]["tmp_name"], $dest_path)) {
+                    $error = "Failed to save the uploaded image file.";
+                    $image_filename = null;
+                }
+            }
+        }
+    }
+
+    if ($error === "") {
+        $sql = "INSERT INTO menu_items
+                (name, category, price, is_available, image)
+                VALUES (?, ?, ?, ?, ?)";
+
+        $stmt = mysqli_prepare($conn, $sql);
+
+        mysqli_stmt_bind_param(
+            $stmt,
+            "ssdis",
+            $name,
+            $category,
+            $price,
+            $is_available,
+            $image_filename
+        );
+
+        mysqli_stmt_execute($stmt);
+
+        header("Location: index.php");
+        exit;
+    }
 }
 
 $page_title = "Add Menu Item";
@@ -58,6 +103,13 @@ $posted_avail = $_POST["is_available"] ?? "1";
     </div>
 </div>
 
+<?php if ($error !== "") { ?>
+    <div class="alert alert-danger d-flex align-items-center py-2 px-3 mb-3 border-danger-subtle" role="alert">
+        <i class="bi bi-exclamation-triangle-fill text-danger me-2 fs-5"></i>
+        <div class="small fw-medium"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></div>
+    </div>
+<?php } ?>
+
 <div class="row justify-content-center">
     <div class="col-12 col-md-8 col-lg-6">
         <div class="pos-card shadow-sm">
@@ -68,7 +120,7 @@ $posted_avail = $_POST["is_available"] ?? "1";
                 <span class="badge bg-white text-muted border">New Catalogue Item</span>
             </div>
             <div class="pos-card-body p-4">
-                <form method="POST">
+                <form method="POST" enctype="multipart/form-data">
                     <!-- Item Name -->
                     <div class="mb-3">
                         <label for="itemName" class="form-label pos-form-label">
@@ -134,6 +186,25 @@ $posted_avail = $_POST["is_available"] ?? "1";
                         <div class="form-text text-muted small">Customer billing rate per unit.</div>
                     </div>
 
+                    <!-- Item Image Upload -->
+                    <div class="mb-3">
+                        <label for="itemImage" class="form-label pos-form-label">
+                            Item Photo / Image
+                        </label>
+                        <input
+                            type="file"
+                            class="form-control pos-form-control"
+                            id="itemImage"
+                            name="image"
+                            accept=".jpg,.jpeg,.png,.webp"
+                            onchange="previewImage(this)"
+                        >
+                        <div class="form-text text-muted small">Optional. Allowed formats: JPG, PNG, WebP (max 3MB). Displayed on the POS Order screen.</div>
+                        <div id="imagePreviewContainer" class="mt-2 d-none">
+                            <img id="imagePreview" src="#" alt="Preview" class="rounded border object-fit-cover" style="width: 90px; height: 90px;">
+                        </div>
+                    </div>
+
                     <!-- Availability Status -->
                     <div class="mb-4">
                         <label for="itemAvailability" class="form-label pos-form-label">
@@ -165,6 +236,24 @@ $posted_avail = $_POST["is_available"] ?? "1";
         </div>
     </div>
 </div>
+
+<script>
+function previewImage(input) {
+    const previewContainer = document.getElementById('imagePreviewContainer');
+    const preview = document.getElementById('imagePreview');
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            previewContainer.classList.remove('d-none');
+        };
+        reader.readAsDataURL(input.files[0]);
+    } else {
+        previewContainer.classList.add('d-none');
+        preview.src = '#';
+    }
+}
+</script>
 
 <?php
 
