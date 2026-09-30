@@ -185,7 +185,7 @@ function isItemActive($key, $script_name, $active_menu) {
     </div>
 
     <!-- User Profile Footer -->
-    <div class="sidebar-user">
+    <div class="sidebar-user d-flex justify-content-between">
         <div class="d-flex align-items-center">
             <i class="bi bi-person-circle fs-4 me-2 text-info"></i>
             <div>

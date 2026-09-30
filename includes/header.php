@@ -1,9 +1,4 @@
 <?php
-/**
- * Shared Application Header Component
- * Provides document head, vendor assets, and opens the layout shell.
- */
-
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -30,7 +25,6 @@ $no_shell = $no_shell ?? false;
     <!-- Local Bootstrap Icons -->
     <link rel="stylesheet" href="<?php echo $base_path; ?>assets/vendor/bootstrap-icons/bootstrap-icons.min.css">
     
-    <!-- Custom Application Design System -->
     <link rel="stylesheet" href="<?php echo $base_path; ?>assets/css/style.css">
 </head>
 <body class="pos-body">

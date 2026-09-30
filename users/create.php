@@ -30,10 +30,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (mysqli_num_rows($result) > 0) {
 
         $error = "Email already exists.";
-
     } else {
 
-       
+
         // Create user
         $sql = "INSERT INTO users (name, email, password, role)
                 VALUES (?, ?, ?, ?)";
@@ -114,12 +113,12 @@ require_once "../includes/header.php";
                                 <span class="input-group-text bg-light text-muted">
                                     <i class="bi bi-person"></i>
                                 </span>
-                                <input type="text" 
-                                       name="name" 
-                                       class="form-control" 
-                                       placeholder="e.g. John Doe" 
-                                       value="<?php echo isset($_POST['name']) ? htmlspecialchars($_POST['name']) : ''; ?>" 
-                                       required>
+                                <input type="text"
+                                    name="name"
+                                    class="form-control"
+                                    placeholder="e.g. Ali Khan"
+                                    value="<?php echo isset($_POST['name']) ? htmlspecialchars($_POST['name']) : ''; ?>"
+                                    required>
                             </div>
                             <div class="form-text">Staff member's legal or display name.</div>
                         </div>
@@ -132,12 +131,12 @@ require_once "../includes/header.php";
                                 <span class="input-group-text bg-light text-muted">
                                     <i class="bi bi-envelope"></i>
                                 </span>
-                                <input type="email" 
-                                       name="email" 
-                                       class="form-control" 
-                                       placeholder="e.g. staff@restobar.com" 
-                                       value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>" 
-                                       required>
+                                <input type="email"
+                                    name="email"
+                                    class="form-control"
+                                    placeholder="e.g. staff@restobar.com"
+                                    value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>"
+                                    required>
                             </div>
                             <div class="form-text">Unique email used for system sign-in.</div>
                         </div>
@@ -152,11 +151,11 @@ require_once "../includes/header.php";
                                 <span class="input-group-text bg-light text-muted">
                                     <i class="bi bi-key"></i>
                                 </span>
-                                <input type="password" 
-                                       name="password" 
-                                       class="form-control" 
-                                       placeholder="Enter user password" 
-                                       required>
+                                <input type="password"
+                                    name="password"
+                                    class="form-control"
+                                    placeholder="Enter user password"
+                                    required>
                             </div>
                             <div class="form-text">Account authentication credential.</div>
                         </div>

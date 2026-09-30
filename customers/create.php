@@ -79,7 +79,7 @@ $posted_address = $_POST["address"] ?? "";
                                 class="form-control pos-form-control border-start-0 py-2"
                                 id="customerName"
                                 name="name"
-                                placeholder="e.g. John Doe"
+                                placeholder="e.g. Ali Khan"
                                 value="<?php echo htmlspecialchars($posted_name, ENT_QUOTES, 'UTF-8'); ?>"
                                 required
                             >
