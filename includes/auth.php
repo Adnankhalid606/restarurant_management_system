@@ -9,6 +9,6 @@ header("Pragma: no-cache");
 header("Expires: 0");
 
 if (!isset($_SESSION["user_id"])) {
-    header("Location: /restaurant_pos/auth/login.php");
+    header("Location: /restarurant_management_system/auth/login.php");
     exit;
 }
