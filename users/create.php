@@ -10,18 +10,23 @@ $success = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $name = trim($_POST["name"] ?? "");
-    $username = trim($_POST["username"] ?? "");
-    $email = trim($_POST["email"] ?? "");
+    $name = preg_replace('/\s+/', ' ', trim($_POST["name"] ?? ""));
+    $username = strtolower(trim($_POST["username"] ?? ""));
+    $email = strtolower(trim($_POST["email"] ?? ""));
     $password = $_POST["password"] ?? "";
-    $role = $_POST["role"] ?? "waiter";
+    $role = trim($_POST["role"] ?? "waiter");
+    $valid_roles = ["admin", "waiter", "kitchen"];
 
     if ($name === "" || $username === "" || $email === "" || $password === "") {
         $error = "All fields marked with an asterisk are required.";
+    } elseif (mb_strlen($name) < 2 || mb_strlen($name) > 100) {
+        $error = "Full Name must be between 2 and 100 characters.";
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = "Please enter a valid email address.";
-    } elseif (!preg_match('/^[a-zA-Z0-9_.-]{3,30}$/', $username)) {
-        $error = "Username must be 3–30 characters and contain only letters, numbers, underscores, dots, or hyphens.";
+    } elseif (!preg_match('/^[a-z0-9_.-]{3,30}$/', $username)) {
+        $error = "Username must be 3–30 characters and contain only lowercase letters, numbers, underscores, dots, or hyphens.";
+    } elseif (!in_array($role, $valid_roles, true)) {
+        $error = "Invalid system role selected.";
     } else {
         // Check if email or username already exists
         $sql = "SELECT email, username
@@ -41,26 +46,31 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $error = "Email is already registered. Please use another email address.";
             }
         } else {
-            // Create user
-            $sql = "INSERT INTO users (name, username, email, password, role)
-                    VALUES (?, ?, ?, ?, ?)";
+            try {
+                // Create user
+                $sql = "INSERT INTO users (name, username, email, password, role)
+                        VALUES (?, ?, ?, ?, ?)";
 
-            $stmt = mysqli_prepare($conn, $sql);
+                $stmt = mysqli_prepare($conn, $sql);
 
-            mysqli_stmt_bind_param(
-                $stmt,
-                "sssss",
-                $name,
-                $username,
-                $email,
-                $password,
-                $role
-            );
+                mysqli_stmt_bind_param(
+                    $stmt,
+                    "sssss",
+                    $name,
+                    $username,
+                    $email,
+                    $password,
+                    $role
+                );
 
-            mysqli_stmt_execute($stmt);
+                mysqli_stmt_execute($stmt);
 
-            header("Location: index.php");
-            exit;
+                $_SESSION["flash_success"] = "Staff account for '" . $name . "' (@" . $username . ") was created successfully.";
+                header("Location: index.php");
+                exit;
+            } catch (mysqli_sql_exception $e) {
+                $error = "Database rejected account creation: duplicate username/email or invalid role data.";
+            }
         }
     }
 }

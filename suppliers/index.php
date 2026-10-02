@@ -47,6 +47,36 @@ require_once "../includes/header.php";
     </div>
 </div>
 
+<?php 
+$err_msg = $_SESSION["error"] ?? $_SESSION["flash_error"] ?? "";
+$warn_msg = $_SESSION["warning"] ?? $_SESSION["flash_warning"] ?? "";
+$succ_msg = $_SESSION["success"] ?? $_SESSION["flash_success"] ?? "";
+?>
+
+<?php if (!empty($err_msg)) { ?>
+    <div class="alert alert-danger d-flex align-items-center mb-4 shadow-sm" role="alert">
+        <i class="bi bi-exclamation-triangle-fill fs-5 me-2 flex-shrink-0"></i>
+        <div><?php echo htmlspecialchars($err_msg, ENT_QUOTES, 'UTF-8'); ?></div>
+    </div>
+    <?php unset($_SESSION["error"], $_SESSION["flash_error"]); ?>
+<?php } ?>
+
+<?php if (!empty($warn_msg)) { ?>
+    <div class="alert alert-warning d-flex align-items-center mb-4 shadow-sm" role="alert">
+        <i class="bi bi-exclamation-circle-fill fs-5 me-2 flex-shrink-0"></i>
+        <div><?php echo htmlspecialchars($warn_msg, ENT_QUOTES, 'UTF-8'); ?></div>
+    </div>
+    <?php unset($_SESSION["warning"], $_SESSION["flash_warning"]); ?>
+<?php } ?>
+
+<?php if (!empty($succ_msg)) { ?>
+    <div class="alert alert-success d-flex align-items-center mb-4 shadow-sm" role="alert">
+        <i class="bi bi-check-circle-fill fs-5 me-2 flex-shrink-0"></i>
+        <div><?php echo htmlspecialchars($succ_msg, ENT_QUOTES, 'UTF-8'); ?></div>
+    </div>
+    <?php unset($_SESSION["success"], $_SESSION["flash_success"]); ?>
+<?php } ?>
+
 <!-- Supplier Metrics Summary -->
 <div class="row g-3 mb-4">
     <div class="col-6 col-md-3">

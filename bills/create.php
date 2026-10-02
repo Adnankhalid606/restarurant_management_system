@@ -28,97 +28,97 @@ $error = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $order_id = $_POST["order_id"];
-    $discount = $_POST["discount"];
-    $tax = $_POST["tax"];
+    $order_id = isset($_POST["order_id"]) ? (int) $_POST["order_id"] : 0;
+    $discount_raw = trim($_POST["discount"] ?? "0");
+    $tax_raw = trim($_POST["tax"] ?? "0");
 
-    /*
-     * Get order
-     */
-
-    $sql = "SELECT total_amount
-            FROM orders
-            WHERE id = ?";
-
-    $stmt = mysqli_prepare($conn, $sql);
-
-    mysqli_stmt_bind_param(
-        $stmt,
-        "i",
-        $order_id
-    );
-
-    mysqli_stmt_execute($stmt);
-
-    $result = mysqli_stmt_get_result($stmt);
-
-    $order = mysqli_fetch_assoc($result);
-
-    if (!$order) {
-
-        $error = "Order not found.";
+    if ($order_id <= 0) {
+        $error = "Please select a valid order.";
+    } elseif (!is_numeric($discount_raw) || !is_numeric($tax_raw)) {
+        $error = "Discount and Tax must be valid numbers.";
     } else {
+        $discount = (float) $discount_raw;
+        $tax = (float) $tax_raw;
 
-        $subtotal = $order["total_amount"];
+        // 1. Guard against duplicate bill generation for the same order
+        $check_bill_sql = "SELECT id FROM bills WHERE order_id = ? LIMIT 1";
+        $check_bill_stmt = mysqli_prepare($conn, $check_bill_sql);
+        mysqli_stmt_bind_param($check_bill_stmt, "i", $order_id);
+        mysqli_stmt_execute($check_bill_stmt);
+        $existing_bill_res = mysqli_stmt_get_result($check_bill_stmt);
 
-        /*
-         * Validate discount
-         */
+        if ($existing_bill = mysqli_fetch_assoc($existing_bill_res)) {
+            $error = "A bill has already been generated for Order #$order_id (Bill #{$existing_bill['id']}).";
+        } else {
+            // 2. Fetch order and verify eligibility
+            $sql = "SELECT total_amount, status
+                    FROM orders
+                    WHERE id = ?";
 
-        if ($discount < 0) {
+            $stmt = mysqli_prepare($conn, $sql);
+            mysqli_stmt_bind_param($stmt, "i", $order_id);
+            mysqli_stmt_execute($stmt);
 
-            $error = "Discount cannot be negative.";
-        } elseif ($discount > $subtotal) {
+            $result = mysqli_stmt_get_result($stmt);
+            $order = mysqli_fetch_assoc($result);
 
-            $error = "Discount cannot be greater than subtotal.";
-        } elseif ($tax < 0) {
+            if (!$order) {
+                $error = "The selected order could not be found.";
+            } elseif (!in_array($order["status"], ["ready", "completed"], true)) {
+                $error = "Only orders with status 'Ready' or 'Completed' can be billed.";
+            } else {
+                $subtotal = (float) $order["total_amount"];
 
-            $error = "Tax cannot be negative.";
+                if ($discount < 0) {
+                    $error = "Discount cannot be negative.";
+                } elseif ($discount > $subtotal) {
+                    $error = "Discount cannot be greater than subtotal.";
+                } elseif ($tax < 0) {
+                    $error = "Tax cannot be negative.";
+                }
+            }
         }
     }
 
     if ($error === "") {
 
-        $total_amount =
-            $subtotal
-            -
-            $discount
-            +
-            $tax;
+        $total_amount = $subtotal - $discount + $tax;
 
         /*
          * Create bill
          */
+        try {
+            $sql = "INSERT INTO bills
+                    (
+                        order_id,
+                        subtotal,
+                        discount,
+                        tax,
+                        total_amount
+                    )
+                    VALUES (?, ?, ?, ?, ?)";
 
-        $sql = "INSERT INTO bills
-                (
-                    order_id,
-                    subtotal,
-                    discount,
-                    tax,
-                    total_amount
-                )
+            $stmt = mysqli_prepare($conn, $sql);
 
-                VALUES (?, ?, ?, ?, ?)";
+            mysqli_stmt_bind_param(
+                $stmt,
+                "idddd",
+                $order_id,
+                $subtotal,
+                $discount,
+                $tax,
+                $total_amount
+            );
 
-        $stmt = mysqli_prepare($conn, $sql);
+            mysqli_stmt_execute($stmt);
 
-        mysqli_stmt_bind_param(
-            $stmt,
-            "idddd",
-            $order_id,
-            $subtotal,
-            $discount,
-            $tax,
-            $total_amount
-        );
+            $bill_id = mysqli_insert_id($conn);
 
-        mysqli_stmt_execute($stmt);
-
-        $bill_id = mysqli_insert_id($conn);
-
-        header("Location: view.php?id=" . $bill_id);
-        exit;
+            header("Location: view.php?id=" . $bill_id);
+            exit;
+        } catch (mysqli_sql_exception $e) {
+            $error = "Database rejected bill generation: a duplicate invoice exists for this order.";
+        }
     }
 }
 
@@ -194,14 +194,14 @@ $posted_tax = $_POST["tax"] ?? "0";
                             </label>
                             <select name="order_id" id="orderSelect" class="form-select pos-form-control py-2 fs-6" required>
                                 <option value="" data-amount="0">-- Select Prepared / Completed Order --</option>
-                                <?php 
+                                <?php
                                 mysqli_data_seek($orders, 0);
-                                while ($o = mysqli_fetch_assoc($orders)) { 
+                                while ($o = mysqli_fetch_assoc($orders)) {
                                     $selected = ($o["id"] == $posted_order_id) ? "selected" : "";
                                 ?>
-                                    <option value="<?php echo $o["id"]; ?>" 
-                                            data-amount="<?php echo $o["total_amount"]; ?>"
-                                            <?php echo $selected; ?>>
+                                    <option value="<?php echo $o["id"]; ?>"
+                                        data-amount="<?php echo $o["total_amount"]; ?>"
+                                        <?php echo $selected; ?>>
                                         Order #<?php echo $o["id"]; ?> &bull; Rs. <?php echo number_format($o["total_amount"], 2); ?> (Status: <?php echo ucfirst($o["status"]); ?>)
                                     </option>
                                 <?php } ?>
@@ -225,8 +225,7 @@ $posted_tax = $_POST["tax"] ?? "0";
                                         step="0.01"
                                         min="0"
                                         value="<?php echo htmlspecialchars($posted_discount, ENT_QUOTES, 'UTF-8'); ?>"
-                                        required
-                                    >
+                                        required>
                                 </div>
                                 <div class="form-text text-muted small">Deducted from order subtotal. Cannot exceed subtotal.</div>
                             </div>
@@ -245,8 +244,7 @@ $posted_tax = $_POST["tax"] ?? "0";
                                         step="0.01"
                                         min="0"
                                         value="<?php echo htmlspecialchars($posted_tax, ENT_QUOTES, 'UTF-8'); ?>"
-                                        required
-                                    >
+                                        required>
                                 </div>
                                 <div class="form-text text-muted small">Added to order subtotal.</div>
                             </div>
@@ -289,36 +287,36 @@ $posted_tax = $_POST["tax"] ?? "0";
 
             <!-- Client-side Calculation Preview Helper -->
             <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                const orderSelect = document.getElementById('orderSelect');
-                const discountInput = document.getElementById('discountInput');
-                const taxInput = document.getElementById('taxInput');
+                document.addEventListener('DOMContentLoaded', function() {
+                    const orderSelect = document.getElementById('orderSelect');
+                    const discountInput = document.getElementById('discountInput');
+                    const taxInput = document.getElementById('taxInput');
 
-                const previewSubtotal = document.getElementById('previewSubtotal');
-                const previewDiscount = document.getElementById('previewDiscount');
-                const previewTax = document.getElementById('previewTax');
-                const previewTotal = document.getElementById('previewTotal');
+                    const previewSubtotal = document.getElementById('previewSubtotal');
+                    const previewDiscount = document.getElementById('previewDiscount');
+                    const previewTax = document.getElementById('previewTax');
+                    const previewTotal = document.getElementById('previewTotal');
 
-                function updatePreview() {
-                    const selectedOption = orderSelect.options[orderSelect.selectedIndex];
-                    const subtotal = selectedOption ? parseFloat(selectedOption.getAttribute('data-amount') || 0) : 0;
-                    const discount = parseFloat(discountInput.value || 0);
-                    const tax = parseFloat(taxInput.value || 0);
+                    function updatePreview() {
+                        const selectedOption = orderSelect.options[orderSelect.selectedIndex];
+                        const subtotal = selectedOption ? parseFloat(selectedOption.getAttribute('data-amount') || 0) : 0;
+                        const discount = parseFloat(discountInput.value || 0);
+                        const tax = parseFloat(taxInput.value || 0);
 
-                    const total = Math.max(0, subtotal - discount + tax);
+                        const total = Math.max(0, subtotal - discount + tax);
 
-                    previewSubtotal.textContent = 'Rs. ' + subtotal.toFixed(2);
-                    previewDiscount.textContent = '- Rs. ' + discount.toFixed(2);
-                    previewTax.textContent = '+ Rs. ' + tax.toFixed(2);
-                    previewTotal.textContent = 'Rs. ' + total.toFixed(2);
-                }
+                        previewSubtotal.textContent = 'Rs. ' + subtotal.toFixed(2);
+                        previewDiscount.textContent = '- Rs. ' + discount.toFixed(2);
+                        previewTax.textContent = '+ Rs. ' + tax.toFixed(2);
+                        previewTotal.textContent = 'Rs. ' + total.toFixed(2);
+                    }
 
-                orderSelect.addEventListener('change', updatePreview);
-                discountInput.addEventListener('input', updatePreview);
-                taxInput.addEventListener('input', updatePreview);
+                    orderSelect.addEventListener('change', updatePreview);
+                    discountInput.addEventListener('input', updatePreview);
+                    taxInput.addEventListener('input', updatePreview);
 
-                updatePreview();
-            });
+                    updatePreview();
+                });
             </script>
         <?php } ?>
     </div>

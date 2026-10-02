@@ -63,6 +63,30 @@ require_once "../includes/header.php";
     </div>
 </div>
 
+<?php if (!empty($_SESSION["flash_error"])) { ?>
+    <div class="alert alert-danger d-flex align-items-center mb-4 shadow-sm" role="alert">
+        <i class="bi bi-exclamation-triangle-fill fs-5 me-2 flex-shrink-0"></i>
+        <div><?php echo htmlspecialchars($_SESSION["flash_error"], ENT_QUOTES, 'UTF-8'); ?></div>
+    </div>
+    <?php unset($_SESSION["flash_error"]); ?>
+<?php } ?>
+
+<?php if (!empty($_SESSION["flash_warning"])) { ?>
+    <div class="alert alert-warning d-flex align-items-center mb-4 shadow-sm" role="alert">
+        <i class="bi bi-exclamation-circle-fill fs-5 me-2 flex-shrink-0"></i>
+        <div><?php echo htmlspecialchars($_SESSION["flash_warning"], ENT_QUOTES, 'UTF-8'); ?></div>
+    </div>
+    <?php unset($_SESSION["flash_warning"]); ?>
+<?php } ?>
+
+<?php if (!empty($_SESSION["flash_success"])) { ?>
+    <div class="alert alert-success d-flex align-items-center mb-4 shadow-sm" role="alert">
+        <i class="bi bi-check-circle-fill fs-5 me-2 flex-shrink-0"></i>
+        <div><?php echo htmlspecialchars($_SESSION["flash_success"], ENT_QUOTES, 'UTF-8'); ?></div>
+    </div>
+    <?php unset($_SESSION["flash_success"]); ?>
+<?php } ?>
+
 <!-- Administration Metrics Summary -->
 <div class="row g-3 mb-4">
     <div class="col-6 col-md-3">

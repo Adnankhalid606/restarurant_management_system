@@ -5,36 +5,66 @@ require_once "../includes/role.php";
 
 requireRole(["admin"]);
 
+$error = "";
+
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $table_number = $_POST["table_number"];
-    $capacity = $_POST["capacity"];
-    $status = $_POST["status"];
+    $table_number = isset($_POST["table_number"]) ? (int) $_POST["table_number"] : 0;
+    $capacity = isset($_POST["capacity"]) ? (int) $_POST["capacity"] : 0;
+    $status = trim($_POST["status"] ?? "available");
+    $valid_statuses = ["available", "occupied", "reserved"];
 
-    $sql = "INSERT INTO restaurant_tables
-            (table_number, capacity, status)
-            VALUES (?, ?, ?)";
+    if ($table_number <= 0) {
+        $error = "Table number must be a positive integer.";
+    } elseif ($capacity <= 0) {
+        $error = "Seating capacity must be at least 1 person.";
+    } elseif (!in_array($status, $valid_statuses, true)) {
+        $error = "Invalid table status selected.";
+    } else {
+        // Pre-check for duplicate table_number
+        $check_sql = "SELECT id FROM restaurant_tables WHERE table_number = ? LIMIT 1";
+        $check_stmt = mysqli_prepare($conn, $check_sql);
+        mysqli_stmt_bind_param($check_stmt, "i", $table_number);
+        mysqli_stmt_execute($check_stmt);
+        $exists = mysqli_fetch_assoc(mysqli_stmt_get_result($check_stmt));
 
-    $stmt = mysqli_prepare($conn, $sql);
+        if ($exists) {
+            $error = "Table #$table_number already exists. Please choose a unique table number.";
+        } else {
+            try {
+                $sql = "INSERT INTO restaurant_tables
+                        (table_number, capacity, status)
+                        VALUES (?, ?, ?)";
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        "iis",
-        $table_number,
-        $capacity,
-        $status
-    );
+                $stmt = mysqli_prepare($conn, $sql);
 
-    mysqli_stmt_execute($stmt);
+                mysqli_stmt_bind_param(
+                    $stmt,
+                    "iis",
+                    $table_number,
+                    $capacity,
+                    $status
+                );
 
-    header("Location: index.php");
-    exit;
+                mysqli_stmt_execute($stmt);
+
+                header("Location: index.php");
+                exit;
+            } catch (mysqli_sql_exception $e) {
+                $error = "Database rejected table record: duplicate table number or invalid input.";
+            }
+        }
+    }
 }
 
 $page_title = "Add Restaurant Table";
 $active_menu = "table";
 
 require_once "../includes/header.php";
+
+$posted_table_number = $_POST["table_number"] ?? "";
+$posted_capacity = $_POST["capacity"] ?? "";
+$posted_status = $_POST["status"] ?? "available";
 ?>
 
 <!-- Page Header Bar -->
@@ -53,6 +83,15 @@ require_once "../includes/header.php";
 
 <div class="row justify-content-center">
     <div class="col-12 col-md-8 col-lg-6">
+        <?php if ($error !== "") { ?>
+            <div class="alert alert-danger d-flex align-items-center mb-4 shadow-sm" role="alert">
+                <i class="bi bi-exclamation-triangle-fill fs-5 me-2 flex-shrink-0"></i>
+                <div>
+                    <strong>Configuration Error:</strong> <?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?>
+                </div>
+            </div>
+        <?php } ?>
+
         <div class="pos-card shadow-sm">
             <div class="pos-card-header bg-light">
                 <span class="pos-card-title">
@@ -78,6 +117,7 @@ require_once "../includes/header.php";
                                 name="table_number"
                                 placeholder="e.g. 1"
                                 min="1"
+                                value="<?php echo htmlspecialchars((string)$posted_table_number, ENT_QUOTES, 'UTF-8'); ?>"
                                 required
                             >
                         </div>
@@ -100,6 +140,7 @@ require_once "../includes/header.php";
                                 name="capacity"
                                 placeholder="e.g. 4"
                                 min="1"
+                                value="<?php echo htmlspecialchars((string)$posted_capacity, ENT_QUOTES, 'UTF-8'); ?>"
                                 required
                             >
                         </div>
@@ -112,9 +153,9 @@ require_once "../includes/header.php";
                             Initial Status <span class="text-danger">*</span>
                         </label>
                         <select name="status" id="tableStatus" class="form-select pos-form-control py-2" required>
-                            <option value="available" selected>Available (Ready for walk-in or new dine-in order)</option>
-                            <option value="occupied">Occupied (Seated guests currently dining)</option>
-                            <option value="reserved">Reserved (Held for upcoming reservation)</option>
+                            <option value="available" <?php if ($posted_status === 'available') echo 'selected'; ?>>Available (Ready for walk-in or new dine-in order)</option>
+                            <option value="occupied" <?php if ($posted_status === 'occupied') echo 'selected'; ?>>Occupied (Seated guests currently dining)</option>
+                            <option value="reserved" <?php if ($posted_status === 'reserved') echo 'selected'; ?>>Reserved (Held for upcoming reservation)</option>
                         </select>
                     </div>
 

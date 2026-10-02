@@ -291,7 +291,7 @@ CREATE TABLE `users` (
 --
 ALTER TABLE `bills`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `order_id` (`order_id`);
+  ADD UNIQUE KEY `order_id` (`order_id`);
 
 --
 -- Indexes for table `customers`

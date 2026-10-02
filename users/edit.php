@@ -30,19 +30,24 @@ if (!$user) {
 // Update user
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $name = trim($_POST["name"] ?? "");
-    $username = trim($_POST["username"] ?? "");
-    $email = trim($_POST["email"] ?? "");
-    $role = $_POST["role"] ?? "waiter";
-    $is_active = (int) ($_POST["is_active"] ?? 1);
+    $name = preg_replace('/\s+/', ' ', trim($_POST["name"] ?? ""));
+    $username = strtolower(trim($_POST["username"] ?? ""));
+    $email = strtolower(trim($_POST["email"] ?? ""));
+    $role = trim($_POST["role"] ?? "waiter");
+    $is_active = (isset($_POST["is_active"]) && (int)$_POST["is_active"] === 0) ? 0 : 1;
     $password = $_POST["password"] ?? "";
+    $valid_roles = ["admin", "waiter", "kitchen"];
 
     if ($name === "" || $username === "" || $email === "") {
         $error = "Name, username, and email fields are required.";
+    } elseif (mb_strlen($name) < 2 || mb_strlen($name) > 100) {
+        $error = "Full Name must be between 2 and 100 characters.";
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = "Please enter a valid email address.";
-    } elseif (!preg_match('/^[a-zA-Z0-9_.-]{3,30}$/', $username)) {
-        $error = "Username must be 3–30 characters and contain only letters, numbers, underscores, dots, or hyphens.";
+    } elseif (!preg_match('/^[a-z0-9_.-]{3,30}$/', $username)) {
+        $error = "Username must be 3–30 characters and contain only lowercase letters, numbers, underscores, dots, or hyphens.";
+    } elseif (!in_array($role, $valid_roles, true)) {
+        $error = "Invalid system role selected.";
     } else {
         // Check if another user already uses this email or username
         $sql = "SELECT id, email, username
@@ -63,68 +68,73 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $error = "Email address is already registered to another account.";
             }
         } else {
-            // Update password only if a new password was entered
-            if ($password !== "") {
+            try {
+                // Update password only if a new password was entered
+                if ($password !== "") {
 
-                $sql = "UPDATE users
-                        SET name = ?,
-                            username = ?,
-                            email = ?,
-                            password = ?,
-                            role = ?,
-                            is_active = ?
-                        WHERE id = ?";
+                    $sql = "UPDATE users
+                            SET name = ?,
+                                username = ?,
+                                email = ?,
+                                password = ?,
+                                role = ?,
+                                is_active = ?
+                            WHERE id = ?";
 
-                $stmt = mysqli_prepare($conn, $sql);
+                    $stmt = mysqli_prepare($conn, $sql);
 
-                mysqli_stmt_bind_param(
-                    $stmt,
-                    "sssssii",
-                    $name,
-                    $username,
-                    $email,
-                    $password,
-                    $role,
-                    $is_active,
-                    $id
-                );
+                    mysqli_stmt_bind_param(
+                        $stmt,
+                        "sssssii",
+                        $name,
+                        $username,
+                        $email,
+                        $password,
+                        $role,
+                        $is_active,
+                        $id
+                    );
 
-            } else {
+                } else {
 
-                $sql = "UPDATE users
-                        SET name = ?,
-                            username = ?,
-                            email = ?,
-                            role = ?,
-                            is_active = ?
-                        WHERE id = ?";
+                    $sql = "UPDATE users
+                            SET name = ?,
+                                username = ?,
+                                email = ?,
+                                role = ?,
+                                is_active = ?
+                            WHERE id = ?";
 
-                $stmt = mysqli_prepare($conn, $sql);
+                    $stmt = mysqli_prepare($conn, $sql);
 
-                mysqli_stmt_bind_param(
-                    $stmt,
-                    "ssssii",
-                    $name,
-                    $username,
-                    $email,
-                    $role,
-                    $is_active,
-                    $id
-                );
+                    mysqli_stmt_bind_param(
+                        $stmt,
+                        "ssssii",
+                        $name,
+                        $username,
+                        $email,
+                        $role,
+                        $is_active,
+                        $id
+                    );
+                }
+
+                mysqli_stmt_execute($stmt);
+
+                // If updating currently logged in user, refresh active session
+                if (isset($_SESSION["user_id"]) && (int)$_SESSION["user_id"] === (int)$id) {
+                    $_SESSION["user_name"] = $name;
+                    $_SESSION["username"] = $username;
+                    $_SESSION["user_email"] = $email;
+                    $_SESSION["role"] = $role;
+                }
+
+                $_SESSION["flash_success"] = "Account for '" . $name . "' (@" . $username . ") was updated successfully.";
+                header("Location: index.php");
+                exit;
+            } catch (mysqli_sql_exception $e) {
+                $error = "Database rejected account update: duplicate credential or invalid role data.";
             }
-
-            mysqli_stmt_execute($stmt);
-
-            // If updating currently logged in user, refresh active session
-            if (isset($_SESSION["user_id"]) && $_SESSION["user_id"] == $id) {
-                $_SESSION["user_name"] = $name;
-                $_SESSION["username"] = $username;
-                $_SESSION["user_email"] = $email;
-                $_SESSION["role"] = $role;
-            }
-
-            header("Location: index.php");
-            exit;
         }
     }
 }
