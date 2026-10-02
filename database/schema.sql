@@ -274,6 +274,7 @@ CREATE TABLE `suppliers` (
 CREATE TABLE `users` (
   `id` int(11) NOT NULL,
   `name` varchar(100) NOT NULL,
+  `username` varchar(50) NOT NULL,
   `email` varchar(150) NOT NULL,
   `password` varchar(255) NOT NULL,
   `role` enum('admin','waiter','kitchen') NOT NULL DEFAULT 'waiter',
@@ -403,6 +404,7 @@ ALTER TABLE `suppliers`
 --
 ALTER TABLE `users`
   ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `username` (`username`),
   ADD UNIQUE KEY `email` (`email`);
 
 --

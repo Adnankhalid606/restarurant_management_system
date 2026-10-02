@@ -12,43 +12,49 @@ if (isset($_SESSION["user_id"])) {
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $email = $_POST["email"];
-    $password = $_POST["password"];
+    $login_input = trim($_POST["login_input"] ?? "");
+    $password = $_POST["password"] ?? "";
 
-    $sql = "SELECT id, name, email, password, role, is_active
-            FROM users
-            WHERE email = ?";
-
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, "s", $email);
-    mysqli_stmt_execute($stmt);
-
-    $result = mysqli_stmt_get_result($stmt);
-    $user = mysqli_fetch_assoc($result);
-
-    if (!$user) {
-
-        $error = "Invalid email or password.";
-
-    } elseif (!$user["is_active"]) {
-
-        $error = "Your account is inactive.";
-
-    } elseif ($password !== $user["password"]) {
-
-        $error = "Invalid email or password.";
-
+    if ($login_input === "" || $password === "") {
+        $error = "Please provide both username/email and password.";
     } else {
+        $sql = "SELECT id, name, username, email, password, role, is_active
+                FROM users
+                WHERE email = ? OR username = ?
+                LIMIT 1";
 
-        session_regenerate_id(true);
+        $stmt = mysqli_prepare($conn, $sql);
+        mysqli_stmt_bind_param($stmt, "ss", $login_input, $login_input);
+        mysqli_stmt_execute($stmt);
 
-        $_SESSION["user_id"] = $user["id"];
-        $_SESSION["user_name"] = $user["name"];
-        $_SESSION["user_email"] = $user["email"];
-        $_SESSION["role"] = $user["role"];
+        $result = mysqli_stmt_get_result($stmt);
+        $user = mysqli_fetch_assoc($result);
 
-        header("Location: ../index.php");
-        exit;
+        if (!$user) {
+
+            $error = "Invalid username/email or password.";
+
+        } elseif (!$user["is_active"]) {
+
+            $error = "Your account is inactive.";
+
+        } elseif ($password !== $user["password"]) {
+
+            $error = "Invalid username/email or password.";
+
+        } else {
+
+            session_regenerate_id(true);
+
+            $_SESSION["user_id"] = $user["id"];
+            $_SESSION["user_name"] = $user["name"];
+            $_SESSION["username"] = $user["username"];
+            $_SESSION["user_email"] = $user["email"];
+            $_SESSION["role"] = $user["role"];
+
+            header("Location: ../index.php");
+            exit;
+        }
     }
 };
 
@@ -76,18 +82,18 @@ require_once "../includes/header.php";
 
         <form method="POST" action="">
             <div class="mb-3">
-                <label for="email" class="form-label pos-form-label">Email Address</label>
+                <label for="login_input" class="form-label pos-form-label">Username or Email</label>
                 <div class="input-group">
                     <span class="input-group-text bg-white text-muted border-end-0">
-                        <i class="bi bi-envelope"></i>
+                        <i class="bi bi-person-badge"></i>
                     </span>
                     <input
-                        type="email"
-                        id="email"
-                        name="email"
+                        type="text"
+                        id="login_input"
+                        name="login_input"
                         class="form-control pos-form-control border-start-0 ps-0"
-                        placeholder="name@restaurant.local"
-                        value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email'], ENT_QUOTES, 'UTF-8') : ''; ?>"
+                        placeholder="username or staff@restobar.com"
+                        value="<?php echo isset($_POST['login_input']) ? htmlspecialchars($_POST['login_input'], ENT_QUOTES, 'UTF-8') : ''; ?>"
                         required
                         autofocus
                     >

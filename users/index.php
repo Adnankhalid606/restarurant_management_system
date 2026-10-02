@@ -5,7 +5,7 @@ require_once "../includes/role.php";
 
 requireRole(["admin"]);
 
-$sql = "SELECT id, name, email, role, is_active, created_at
+$sql = "SELECT id, name, username, email, role, is_active, created_at
         FROM users
         ORDER BY id DESC";
 
@@ -134,7 +134,7 @@ require_once "../includes/header.php";
                 <input type="text" 
                        id="userSearchInput" 
                        class="form-control border-start-0" 
-                       placeholder="Filter name, email, role..." 
+                       placeholder="Filter name, username, email, role..." 
                        aria-label="Search users">
             </div>
         </div>
@@ -174,6 +174,7 @@ require_once "../includes/header.php";
                         ?>
                             <tr class="user-row <?php echo $is_current_user ? 'table-light' : ''; ?>"
                                 data-name="<?php echo strtolower(htmlspecialchars($user["name"])); ?>"
+                                data-username="<?php echo strtolower(htmlspecialchars($user["username"] ?? '')); ?>"
                                 data-email="<?php echo strtolower(htmlspecialchars($user["email"])); ?>"
                                 data-role="<?php echo $role_clean; ?>"
                                 data-status="<?php echo $is_active ? 'active' : 'inactive'; ?>"
@@ -186,7 +187,7 @@ require_once "../includes/header.php";
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
                                         <?php if ($role_clean === "admin") { ?>
-                                            <div class="user-avatar user-avatar-admin">
+                                             <div class="user-avatar user-avatar-admin">
                                                 <i class="bi bi-shield-lock"></i>
                                             </div>
                                         <?php } elseif ($role_clean === "kitchen") { ?>
@@ -205,6 +206,11 @@ require_once "../includes/header.php";
                                                     <span class="badge bg-primary text-white ms-1" style="font-size: 0.65rem;">You</span>
                                                 <?php } ?>
                                             </span>
+                                            <?php if (!empty($user["username"])) { ?>
+                                                <span class="text-muted small font-monospace d-inline-flex align-items-center">
+                                                    @<?php echo htmlspecialchars($user["username"]); ?>
+                                                </span>
+                                            <?php } ?>
                                         </div>
                                     </div>
                                 </td>
@@ -263,9 +269,9 @@ require_once "../includes/header.php";
                                             </button>
                                         <?php } else { ?>
                                             <a href="delete.php?id=<?php echo $user["id"]; ?>" 
-                                               class="btn btn-outline-danger btn-sm" 
-                                               onclick="return confirm('Are you sure you want to delete this user account?');" 
-                                               title="Delete User Account">
+                                                class="btn btn-outline-danger btn-sm" 
+                                                onclick="return confirm('Are you sure you want to delete this user account?');" 
+                                                title="Delete User Account">
                                                 <i class="bi bi-trash"></i>
                                             </a>
                                         <?php } ?>
@@ -302,12 +308,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
             rows.forEach(function(row) {
                 const name = row.getAttribute('data-name') || '';
+                const username = row.getAttribute('data-username') || '';
                 const email = row.getAttribute('data-email') || '';
                 const role = row.getAttribute('data-role') || '';
                 const status = row.getAttribute('data-status') || '';
                 const id = row.getAttribute('data-id') || '';
 
-                if (query === '' || name.includes(query) || email.includes(query) || role.includes(query) || status.includes(query) || id.includes(query)) {
+                if (query === '' || name.includes(query) || username.includes(query) || email.includes(query) || role.includes(query) || status.includes(query) || id.includes(query)) {
                     row.style.display = '';
                     visibleCount++;
                 } else {

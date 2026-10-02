@@ -177,8 +177,9 @@ Configure the MySQL connection according to your local XAMPP environment.
 **WAIT, Before Opening the Project, Add Admin User Manually in Database then logged in to Application**
 
 Insert Admin Users in users table using following query:
-```
-INSERT INTO `users`(`name`, `email`, `password`, `role`, `is_active`) VALUES  ('Admin','admin@gmail.com','admin123','admin',1);
+```sql
+INSERT INTO `users` (`name`, `username`, `email`, `password`, `role`, `is_active`) 
+VALUES ('Admin', 'admin', 'admin@gmail.com', 'admin123', 'admin', 1);
 ```
 Now, Your Admin User is Created and Ready to Login.
 
@@ -188,8 +189,8 @@ http://localhost/restaurant_management_system/
 ```
 
 Login with:
-- Email: `admin@gmail.com`
-- Password: `admin123`
+- **Username or Email:** `admin` or `admin@gmail.com`
+- **Password:** `admin123`
 
 ## Limitations
 

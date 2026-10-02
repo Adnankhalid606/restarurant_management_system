@@ -10,48 +10,58 @@ $success = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $name = $_POST["name"];
-    $email = $_POST["email"];
-    $password = $_POST["password"];
-    $role = $_POST["role"];
+    $name = trim($_POST["name"] ?? "");
+    $username = trim($_POST["username"] ?? "");
+    $email = trim($_POST["email"] ?? "");
+    $password = $_POST["password"] ?? "";
+    $role = $_POST["role"] ?? "waiter";
 
-
-    // Check if email already exists
-    $sql = "SELECT id
-            FROM users
-            WHERE email = ?";
-
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, "s", $email);
-    mysqli_stmt_execute($stmt);
-
-    $result = mysqli_stmt_get_result($stmt);
-
-    if (mysqli_num_rows($result) > 0) {
-
-        $error = "Email already exists.";
+    if ($name === "" || $username === "" || $email === "" || $password === "") {
+        $error = "All fields marked with an asterisk are required.";
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = "Please enter a valid email address.";
+    } elseif (!preg_match('/^[a-zA-Z0-9_.-]{3,30}$/', $username)) {
+        $error = "Username must be 3–30 characters and contain only letters, numbers, underscores, dots, or hyphens.";
     } else {
-
-
-        // Create user
-        $sql = "INSERT INTO users (name, email, password, role)
-                VALUES (?, ?, ?, ?)";
+        // Check if email or username already exists
+        $sql = "SELECT email, username
+                FROM users
+                WHERE email = ? OR username = ?";
 
         $stmt = mysqli_prepare($conn, $sql);
-
-        mysqli_stmt_bind_param(
-            $stmt,
-            "ssss",
-            $name,
-            $email,
-            $password,
-            $role
-        );
-
+        mysqli_stmt_bind_param($stmt, "ss", $email, $username);
         mysqli_stmt_execute($stmt);
 
-        header("Location: index.php");
-        exit;
+        $result = mysqli_stmt_get_result($stmt);
+
+        if ($existing = mysqli_fetch_assoc($result)) {
+            if (strcasecmp($existing["username"], $username) === 0) {
+                $error = "Username is already taken. Please choose a different one.";
+            } else {
+                $error = "Email is already registered. Please use another email address.";
+            }
+        } else {
+            // Create user
+            $sql = "INSERT INTO users (name, username, email, password, role)
+                    VALUES (?, ?, ?, ?, ?)";
+
+            $stmt = mysqli_prepare($conn, $sql);
+
+            mysqli_stmt_bind_param(
+                $stmt,
+                "sssss",
+                $name,
+                $username,
+                $email,
+                $password,
+                $role
+            );
+
+            mysqli_stmt_execute($stmt);
+
+            header("Location: index.php");
+            exit;
+        }
     }
 }
 
@@ -125,6 +135,26 @@ require_once "../includes/header.php";
 
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-semibold text-dark">
+                                Username <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-muted">
+                                    <i class="bi bi-at"></i>
+                                </span>
+                                <input type="text"
+                                    name="username"
+                                    class="form-control"
+                                    placeholder="e.g. ali_waiter"
+                                    value="<?php echo isset($_POST['username']) ? htmlspecialchars($_POST['username']) : ''; ?>"
+                                    required>
+                            </div>
+                            <div class="form-text">Unique username for login terminal access.</div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-semibold text-dark">
                                 Email Identifier <span class="text-danger">*</span>
                             </label>
                             <div class="input-group">
@@ -140,9 +170,7 @@ require_once "../includes/header.php";
                             </div>
                             <div class="form-text">Unique email used for system sign-in.</div>
                         </div>
-                    </div>
 
-                    <div class="row g-3 mb-4">
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-semibold text-dark">
                                 Password <span class="text-danger">*</span>
@@ -159,7 +187,9 @@ require_once "../includes/header.php";
                             </div>
                             <div class="form-text">Account authentication credential.</div>
                         </div>
+                    </div>
 
+                    <div class="row g-3 mb-4">
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-semibold text-dark">
                                 System Role <span class="text-danger">*</span>

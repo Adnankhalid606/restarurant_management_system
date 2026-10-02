@@ -11,7 +11,7 @@ $error = "";
 
 
 // Get user
-$sql = "SELECT id, name, email, role, is_active
+$sql = "SELECT id, name, username, email, role, is_active
         FROM users
         WHERE id = ?";
 
@@ -30,82 +30,102 @@ if (!$user) {
 // Update user
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $name = $_POST["name"];
-    $email = $_POST["email"];
-    $role = $_POST["role"];
-    $is_active = $_POST["is_active"];
-    $password = $_POST["password"];
+    $name = trim($_POST["name"] ?? "");
+    $username = trim($_POST["username"] ?? "");
+    $email = trim($_POST["email"] ?? "");
+    $role = $_POST["role"] ?? "waiter";
+    $is_active = (int) ($_POST["is_active"] ?? 1);
+    $password = $_POST["password"] ?? "";
 
-
-    // Check if another user already uses this email
-    $sql = "SELECT id
-            FROM users
-            WHERE email = ?
-            AND id != ?";
-
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, "si", $email, $id);
-    mysqli_stmt_execute($stmt);
-
-    $result = mysqli_stmt_get_result($stmt);
-
-    if (mysqli_num_rows($result) > 0) {
-
-        $error = "Email already exists.";
-
+    if ($name === "" || $username === "" || $email === "") {
+        $error = "Name, username, and email fields are required.";
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = "Please enter a valid email address.";
+    } elseif (!preg_match('/^[a-zA-Z0-9_.-]{3,30}$/', $username)) {
+        $error = "Username must be 3–30 characters and contain only letters, numbers, underscores, dots, or hyphens.";
     } else {
+        // Check if another user already uses this email or username
+        $sql = "SELECT id, email, username
+                FROM users
+                WHERE (email = ? OR username = ?)
+                AND id != ?";
 
-        // Update password only if a new password was entered
-        if ($password !== "") {
-
-
-            $sql = "UPDATE users
-                    SET name = ?,
-                        email = ?,
-                        password = ?,
-                        role = ?,
-                        is_active = ?
-                    WHERE id = ?";
-
-            $stmt = mysqli_prepare($conn, $sql);
-
-            mysqli_stmt_bind_param(
-                $stmt,
-                "ssssii",
-                $name,
-                $email,
-                $password,
-                $role,
-                $is_active,
-                $id
-            );
-
-        } else {
-
-            $sql = "UPDATE users
-                    SET name = ?,
-                        email = ?,
-                        role = ?,
-                        is_active = ?
-                    WHERE id = ?";
-
-            $stmt = mysqli_prepare($conn, $sql);
-
-            mysqli_stmt_bind_param(
-                $stmt,
-                "sssii",
-                $name,
-                $email,
-                $role,
-                $is_active,
-                $id
-            );
-        }
-
+        $stmt = mysqli_prepare($conn, $sql);
+        mysqli_stmt_bind_param($stmt, "ssi", $email, $username, $id);
         mysqli_stmt_execute($stmt);
 
-        header("Location: index.php");
-        exit;
+        $result = mysqli_stmt_get_result($stmt);
+
+        if ($existing = mysqli_fetch_assoc($result)) {
+            if (strcasecmp($existing["username"], $username) === 0) {
+                $error = "Username is already taken by another account.";
+            } else {
+                $error = "Email address is already registered to another account.";
+            }
+        } else {
+            // Update password only if a new password was entered
+            if ($password !== "") {
+
+                $sql = "UPDATE users
+                        SET name = ?,
+                            username = ?,
+                            email = ?,
+                            password = ?,
+                            role = ?,
+                            is_active = ?
+                        WHERE id = ?";
+
+                $stmt = mysqli_prepare($conn, $sql);
+
+                mysqli_stmt_bind_param(
+                    $stmt,
+                    "sssssii",
+                    $name,
+                    $username,
+                    $email,
+                    $password,
+                    $role,
+                    $is_active,
+                    $id
+                );
+
+            } else {
+
+                $sql = "UPDATE users
+                        SET name = ?,
+                            username = ?,
+                            email = ?,
+                            role = ?,
+                            is_active = ?
+                        WHERE id = ?";
+
+                $stmt = mysqli_prepare($conn, $sql);
+
+                mysqli_stmt_bind_param(
+                    $stmt,
+                    "ssssii",
+                    $name,
+                    $username,
+                    $email,
+                    $role,
+                    $is_active,
+                    $id
+                );
+            }
+
+            mysqli_stmt_execute($stmt);
+
+            // If updating currently logged in user, refresh active session
+            if (isset($_SESSION["user_id"]) && $_SESSION["user_id"] == $id) {
+                $_SESSION["user_name"] = $name;
+                $_SESSION["username"] = $username;
+                $_SESSION["user_email"] = $email;
+                $_SESSION["role"] = $role;
+            }
+
+            header("Location: index.php");
+            exit;
+        }
     }
 }
 
@@ -188,6 +208,25 @@ require_once "../includes/header.php";
 
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-semibold text-dark">
+                                Username <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-muted">
+                                    <i class="bi bi-at"></i>
+                                </span>
+                                <input type="text" 
+                                       name="username" 
+                                       class="form-control" 
+                                       value="<?php echo htmlspecialchars($user["username"] ?? ""); ?>" 
+                                       required>
+                            </div>
+                            <div class="form-text">Unique username for login terminal access.</div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-semibold text-dark">
                                 Email Identifier <span class="text-danger">*</span>
                             </label>
                             <div class="input-group">
@@ -202,9 +241,7 @@ require_once "../includes/header.php";
                             </div>
                             <div class="form-text">System login email identifier.</div>
                         </div>
-                    </div>
 
-                    <div class="row g-3 mb-3">
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-semibold text-dark">
                                 System Role <span class="text-danger">*</span>
@@ -227,7 +264,9 @@ require_once "../includes/header.php";
                             </div>
                             <div class="form-text">Determines system modules and capabilities.</div>
                         </div>
+                    </div>
 
+                    <div class="row g-3 mb-4">
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-semibold text-dark">
                                 Account Status <span class="text-danger">*</span>
@@ -247,22 +286,22 @@ require_once "../includes/header.php";
                             </div>
                             <div class="form-text">Inactive accounts cannot authenticate into the system.</div>
                         </div>
-                    </div>
 
-                    <div class="mb-4">
-                        <label class="form-label fw-semibold text-dark">
-                            New Password <span class="text-muted fw-normal">(Optional)</span>
-                        </label>
-                        <div class="input-group">
-                            <span class="input-group-text bg-light text-muted">
-                                <i class="bi bi-key"></i>
-                            </span>
-                            <input type="password" 
-                                   name="password" 
-                                   class="form-control" 
-                                   placeholder="Leave blank to retain current password">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-semibold text-dark">
+                                New Password <span class="text-muted fw-normal">(Optional)</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-muted">
+                                    <i class="bi bi-key"></i>
+                                </span>
+                                <input type="password" 
+                                       name="password" 
+                                       class="form-control" 
+                                       placeholder="Leave blank to retain current">
+                            </div>
+                            <div class="form-text">Only enter a password if updating credentials.</div>
                         </div>
-                        <div class="form-text">Only enter a new password if you wish to change the existing credential.</div>
                     </div>
 
                     <div class="d-flex justify-content-between align-items-center pt-3 border-top">
