@@ -5,7 +5,12 @@ require_once "../includes/role.php";
 
 requireRole(["admin"]);
 
-$id = $_GET["id"];
+$id = (int) ($_GET["id"] ?? 0);
+if ($id <= 0) {
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
+}
 
 $sql = "SELECT * FROM menu_items WHERE id = ?";
 
@@ -20,7 +25,9 @@ $result = mysqli_stmt_get_result($stmt);
 $item = mysqli_fetch_assoc($result);
 
 if (!$item) {
-    die("Menu item not found.");
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
 }
 
 $error = "";

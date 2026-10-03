@@ -5,7 +5,12 @@ require_once "../includes/role.php";
 
 requireRole(["admin"]);
 
-$id = $_GET["id"];
+$id = (int) ($_GET["id"] ?? 0);
+if ($id <= 0) {
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
+}
 
 
 $sql = "SELECT
@@ -39,7 +44,9 @@ $purchase = mysqli_fetch_assoc($result);
 
 
 if (!$purchase) {
-    die("Purchase not found.");
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
 }
 
 

@@ -5,11 +5,12 @@ require_once "../includes/role.php";
 
 requireRole(["admin"]);
 
-if (!isset($_GET["id"])) {
-    die("Customer ID is required.");
+$customer_id = (int) ($_GET["id"] ?? 0);
+if ($customer_id <= 0) {
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
 }
-
-$customer_id = (int) $_GET["id"];
 
 // Get customer
 $sql = "
@@ -30,7 +31,9 @@ $result = mysqli_stmt_get_result($stmt);
 $customer = mysqli_fetch_assoc($result);
 
 if (!$customer) {
-    die("Customer not found.");
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
 }
 
 // Get customer orders

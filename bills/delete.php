@@ -5,8 +5,12 @@ require_once "../includes/role.php";
 
 requireRole(["admin"]);
 
-$id = $_GET["id"];
-
+$id = (int) ($_GET["id"] ?? 0);
+if ($id <= 0) {
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
+}
 
 // Get bill
 $sql = "SELECT id, payment_status
@@ -21,13 +25,16 @@ $result = mysqli_stmt_get_result($stmt);
 $bill = mysqli_fetch_assoc($result);
 
 if (!$bill) {
-    die("Bill not found.");
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
 }
-
 
 // Do not allow deleting paid bills
 if ($bill["payment_status"] === "paid") {
-    die("Paid bill cannot be deleted.");
+    $_SESSION["error"] = "Paid bill cannot be deleted.";
+    header("Location: index.php");
+    exit;
 }
 
 

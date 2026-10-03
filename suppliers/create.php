@@ -8,9 +8,9 @@ requireRole(["admin"]);
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $name = $_POST["name"];
-    $phone = $_POST["phone"];
-    $address = $_POST["address"];
+    $name = trim($_POST["name"] ?? "");
+    $phone = trim($_POST["phone"] ?? "");
+    $address = trim($_POST["address"] ?? "");
 
 
     $sql = "INSERT INTO suppliers

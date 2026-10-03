@@ -5,7 +5,12 @@ require_once "../includes/role.php";
 
 requireRole(["admin"]);
 
-$id = $_GET["id"];
+$id = (int) ($_GET["id"] ?? 0);
+if ($id <= 0) {
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
+}
 
 
 $sql = "SELECT *
@@ -28,15 +33,17 @@ $supplier = mysqli_fetch_assoc($result);
 
 
 if (!$supplier) {
-    die("Supplier not found.");
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
 }
 
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $name = $_POST["name"];
-    $phone = $_POST["phone"];
-    $address = $_POST["address"];
+    $name = trim($_POST["name"] ?? "");
+    $phone = trim($_POST["phone"] ?? "");
+    $address = trim($_POST["address"] ?? "");
 
 
     $sql = "UPDATE suppliers

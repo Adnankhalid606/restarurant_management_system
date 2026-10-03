@@ -5,7 +5,12 @@ require_once "../includes/role.php";
 
 requireRole(["admin"]);
 
-$id = $_GET["id"];
+$id = (int) ($_GET["id"] ?? 0);
+if ($id <= 0) {
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
+}
 
 $sql = "SELECT * FROM restaurant_tables WHERE id = ?";
 
@@ -20,7 +25,9 @@ $result = mysqli_stmt_get_result($stmt);
 $table = mysqli_fetch_assoc($result);
 
 if (!$table) {
-    die("Table not found.");
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
 }
 
 $error = "";

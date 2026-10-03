@@ -5,12 +5,22 @@ require_once "../includes/role.php";
 
 requireRole(["admin"]);
 
-$id = isset($_GET["id"])
-    ? (int) $_GET["id"]
-    : 0;
+$id = (int) ($_GET["id"] ?? 0);
 
 if ($id <= 0) {
-    die("Invalid purchase ID.");
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
+}
+
+// Check if purchase exists
+$check_stmt = mysqli_prepare($conn, "SELECT id FROM purchases WHERE id = ?");
+mysqli_stmt_bind_param($check_stmt, "i", $id);
+mysqli_stmt_execute($check_stmt);
+if (mysqli_num_rows(mysqli_stmt_get_result($check_stmt)) === 0) {
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
 }
 
 // Check inventory transaction
@@ -34,10 +44,9 @@ mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 
 if (mysqli_num_rows($result) > 0) {
-
-    die(
-        "This purchase cannot be deleted because it has inventory movements."
-    );
+    $_SESSION["error"] = "This purchase cannot be deleted because it has inventory movements.";
+    header("Location: index.php");
+    exit;
 }
 
 

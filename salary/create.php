@@ -21,12 +21,12 @@ $result = mysqli_query($conn, $sql);
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $user_id = (int) $_POST["user_id"];
-    $amount = (float) $_POST["amount"];
-    $salary_type = $_POST["salary_type"];
-    $salary_date = $_POST["salary_date"];
-    $payment_status = $_POST["payment_status"];
-    $description = trim($_POST["description"]);
+    $user_id = (int) ($_POST["user_id"] ?? 0);
+    $amount = (float) ($_POST["amount"] ?? 0);
+    $salary_type = trim($_POST["salary_type"] ?? "");
+    $salary_date = trim($_POST["salary_date"] ?? date("Y-m-d"));
+    $payment_status = trim($_POST["payment_status"] ?? "unpaid");
+    $description = trim($_POST["description"] ?? "");
 
     // Validate salary type
     if (!in_array($salary_type, ["daily", "monthly"])) {

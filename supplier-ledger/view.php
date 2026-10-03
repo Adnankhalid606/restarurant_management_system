@@ -5,11 +5,12 @@ require_once "../includes/role.php";
 
 requireRole(["admin"]);
 
-if (!isset($_GET["id"])) {
-    die("Supplier ID is required.");
+$supplier_id = (int) ($_GET["id"] ?? 0);
+if ($supplier_id <= 0) {
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
 }
-
-$supplier_id = (int) $_GET["id"];
 
 // Get supplier
 $sql = "
@@ -30,7 +31,9 @@ $result = mysqli_stmt_get_result($stmt);
 $supplier = mysqli_fetch_assoc($result);
 
 if (!$supplier) {
-    die("Supplier not found.");
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
 }
 
 // Get supplier purchases

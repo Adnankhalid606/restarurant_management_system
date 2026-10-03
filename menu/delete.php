@@ -5,7 +5,22 @@ require_once "../includes/role.php";
 
 requireRole(["admin"]);
 
-$id = $_GET["id"];
+$id = (int) ($_GET["id"] ?? 0);
+if ($id <= 0) {
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
+}
+
+// Check if menu item exists
+$check_stmt = mysqli_prepare($conn, "SELECT id FROM menu_items WHERE id = ?");
+mysqli_stmt_bind_param($check_stmt, "i", $id);
+mysqli_stmt_execute($check_stmt);
+if (mysqli_num_rows(mysqli_stmt_get_result($check_stmt)) === 0) {
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
+}
 
 // Check if menu item is referenced in order items
 $sql = "SELECT id
@@ -19,7 +34,9 @@ mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 
 if (mysqli_num_rows($result) > 0) {
-    die("Cannot delete menu item: This item is referenced in existing orders.");
+    $_SESSION["error"] = "Cannot delete menu item: This item is referenced in existing orders.";
+    header("Location: index.php");
+    exit;
 }
 
 // Check if menu item has a recipe
@@ -34,7 +51,9 @@ mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 
 if (mysqli_num_rows($result) > 0) {
-    die("Cannot delete menu item: This item has an associated recipe.");
+    $_SESSION["error"] = "Cannot delete menu item: This item has an associated recipe.";
+    header("Location: index.php");
+    exit;
 }
 
 // Fetch image filename for cleanup if delete succeeds

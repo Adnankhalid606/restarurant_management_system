@@ -5,7 +5,12 @@ require_once "../includes/role.php";
 
 requireRole(["admin", "waiter"]);
 
-$id = $_GET["id"];
+$id = (int) ($_GET["id"] ?? 0);
+if ($id <= 0) {
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
+}
 
 $sql = "SELECT
             bills.id,
@@ -35,7 +40,9 @@ $result = mysqli_stmt_get_result($stmt);
 $bill = mysqli_fetch_assoc($result);
 
 if (!$bill) {
-    die("Bill not found.");
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
 }
 
 // Get order items

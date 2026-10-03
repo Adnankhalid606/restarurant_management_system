@@ -5,7 +5,12 @@ require_once "../includes/role.php";
 
 requireRole(["admin", "waiter"]);
 
-$id = $_GET["id"];
+$id = (int) ($_GET["id"] ?? 0);
+if ($id <= 0) {
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
+}
 
 $sql = "SELECT *
         FROM reservations
@@ -26,7 +31,9 @@ $result = mysqli_stmt_get_result($stmt);
 $reservation = mysqli_fetch_assoc($result);
 
 if (!$reservation) {
-    die("Reservation not found.");
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
 }
 
 $customers = mysqli_query(

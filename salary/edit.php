@@ -9,11 +9,12 @@ if ($_SESSION["role"] !== "admin") {
     die("Access denied.");
 }
 
-if (!isset($_GET["id"])) {
-    die("Salary ID is required.");
+$salary_id = (int) ($_GET["id"] ?? 0);
+if ($salary_id <= 0) {
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
 }
-
-$salary_id = (int) $_GET["id"];
 
 // Get salary
 $sql = "
@@ -37,7 +38,9 @@ $result = mysqli_stmt_get_result($stmt);
 $salary = mysqli_fetch_assoc($result);
 
 if (!$salary) {
-    die("Salary record not found.");
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
 }
 
 // Get employees
@@ -56,12 +59,12 @@ $employees_result = mysqli_query($conn, $sql);
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $user_id = (int) $_POST["user_id"];
-    $amount = (float) $_POST["amount"];
-    $salary_type = $_POST["salary_type"];
-    $salary_date = $_POST["salary_date"];
-    $payment_status = $_POST["payment_status"];
-    $description = trim($_POST["description"]);
+    $user_id = (int) ($_POST["user_id"] ?? 0);
+    $amount = (float) ($_POST["amount"] ?? 0);
+    $salary_type = trim($_POST["salary_type"] ?? "");
+    $salary_date = trim($_POST["salary_date"] ?? date("Y-m-d"));
+    $payment_status = trim($_POST["payment_status"] ?? "unpaid");
+    $description = trim($_POST["description"] ?? "");
 
     // Validate salary type
     if (!in_array($salary_type, ["daily", "monthly"])) {

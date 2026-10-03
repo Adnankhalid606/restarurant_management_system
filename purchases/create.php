@@ -23,9 +23,9 @@ $error = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $supplier_id = $_POST["supplier_id"];
-    $payment_status = $_POST["payment_status"];
-    $purchase_date = $_POST["purchase_date"];
+    $supplier_id = (int) ($_POST["supplier_id"] ?? 0);
+    $payment_status = trim($_POST["payment_status"] ?? "unpaid");
+    $purchase_date = trim($_POST["purchase_date"] ?? date("Y-m-d"));
 
     $raw_material_ids = $_POST["raw_material_id"] ?? [];
     $quantities = $_POST["quantity"] ?? [];

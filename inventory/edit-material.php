@@ -5,7 +5,12 @@ require_once "../includes/role.php";
 
 requireRole(["admin"]);
 
-$id = $_GET["id"];
+$id = (int) ($_GET["id"] ?? 0);
+if ($id <= 0) {
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: materials.php");
+    exit;
+}
 
 $sql = "SELECT *
         FROM raw_materials
@@ -26,15 +31,17 @@ $result = mysqli_stmt_get_result($stmt);
 $material = mysqli_fetch_assoc($result);
 
 if (!$material) {
-    die("Raw material not found.");
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: materials.php");
+    exit;
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $name = $_POST["name"];
-    $unit = $_POST["unit"];
-    $current_stock = $_POST["current_stock"];
-    $minimum_stock = $_POST["minimum_stock"];
+    $name = trim($_POST["name"] ?? "");
+    $unit = trim($_POST["unit"] ?? "");
+    $current_stock = (float) ($_POST["current_stock"] ?? 0);
+    $minimum_stock = (float) ($_POST["minimum_stock"] ?? 0);
 
     $sql = "UPDATE raw_materials
             SET name = ?,

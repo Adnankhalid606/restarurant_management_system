@@ -7,10 +7,10 @@ requireRole(["admin"]);
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $name = $_POST["name"];
-    $unit = $_POST["unit"];
-    $current_stock = $_POST["current_stock"];
-    $minimum_stock = $_POST["minimum_stock"];
+    $name = trim($_POST["name"] ?? "");
+    $unit = trim($_POST["unit"] ?? "");
+    $current_stock = (float) ($_POST["current_stock"] ?? 0);
+    $minimum_stock = (float) ($_POST["minimum_stock"] ?? 0);
 
     $sql = "INSERT INTO raw_materials
             (name, unit, current_stock, minimum_stock)

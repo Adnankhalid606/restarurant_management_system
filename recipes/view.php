@@ -5,7 +5,12 @@ require_once "../includes/role.php";
 
 requireRole(["admin", "kitchen"]);
 
-$id = $_GET["id"];
+$id = (int) ($_GET["id"] ?? 0);
+if ($id <= 0) {
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
+}
 
 
 $sql = "SELECT
@@ -37,7 +42,9 @@ $recipe = mysqli_fetch_assoc($result);
 
 
 if (!$recipe) {
-    die("Recipe not found.");
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
 }
 
 

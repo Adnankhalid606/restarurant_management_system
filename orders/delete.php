@@ -5,12 +5,11 @@ require_once "../includes/role.php";
 
 requireRole(["admin"]);
 
-$id = isset($_GET["id"])
-    ? (int) $_GET["id"]
-    : 0;
-
+$id = (int) ($_GET["id"] ?? 0);
 if ($id <= 0) {
-    die("Invalid order ID.");
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
 }
 
 
@@ -35,7 +34,9 @@ $result = mysqli_stmt_get_result($stmt);
 $order = mysqli_fetch_assoc($result);
 
 if (!$order) {
-    die("Order not found.");
+    $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
 }
 
 
