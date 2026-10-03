@@ -5,43 +5,64 @@ require_once "../includes/role.php";
 
 requireRole(["admin"]);
 
+$error = "";
+
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $expense_head = $_POST["expense_head"];
-    $description = $_POST["description"];
-    $amount = $_POST["amount"];
-    $expense_date = $_POST["expense_date"];
+    $expense_head = preg_replace('/\s+/', ' ', trim($_POST["expense_head"] ?? ""));
+    $description = preg_replace('/\s+/', ' ', trim($_POST["description"] ?? ""));
+    $amount_raw = trim($_POST["amount"] ?? "");
+    $expense_date = trim($_POST["expense_date"] ?? "");
 
-    $sql = "INSERT INTO expenses
-            (
-                expense_head,
-                description,
-                amount,
-                expense_date
-            )
-            VALUES (?, ?, ?, ?)";
+    if ($expense_head === "") {
+        $error = "Expense head / category is required.";
+    } elseif (!is_numeric($amount_raw) || (float) $amount_raw <= 0) {
+        $error = "Expense amount must be a valid numeric amount greater than zero.";
+    } elseif ($expense_date === "") {
+        $error = "Expense transaction date is required.";
+    } else {
+        $amount = (float) $amount_raw;
 
-    $stmt = mysqli_prepare($conn, $sql);
+        try {
+            $sql = "INSERT INTO expenses
+                    (
+                        expense_head,
+                        description,
+                        amount,
+                        expense_date
+                    )
+                    VALUES (?, ?, ?, ?)";
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        "ssds",
-        $expense_head,
-        $description,
-        $amount,
-        $expense_date
-    );
+            $stmt = mysqli_prepare($conn, $sql);
 
-    mysqli_stmt_execute($stmt);
+            mysqli_stmt_bind_param(
+                $stmt,
+                "ssds",
+                $expense_head,
+                $description,
+                $amount,
+                $expense_date
+            );
 
-    header("Location: index.php");
-    exit;
+            mysqli_stmt_execute($stmt);
+
+            header("Location: index.php");
+            exit;
+        } catch (mysqli_sql_exception $e) {
+            $error = "Database error while recording operating expense.";
+        }
+    }
 }
 
 $page_title = "Add Expense";
 $active_menu = "expenses";
 
 require_once "../includes/header.php";
+
+$posted_head = $_POST["expense_head"] ?? "";
+$posted_desc = $_POST["description"] ?? "";
+$posted_amount = $_POST["amount"] ?? "";
+$posted_date = $_POST["expense_date"] ?? date("Y-m-d");
 ?>
 
 <!-- Page Header Bar -->
@@ -57,6 +78,15 @@ require_once "../includes/header.php";
         </a>
     </div>
 </div>
+
+<?php if ($error !== "") { ?>
+    <div class="alert alert-danger d-flex align-items-center mb-4 shadow-sm" role="alert">
+        <i class="bi bi-exclamation-triangle-fill fs-5 me-2 flex-shrink-0"></i>
+        <div>
+            <strong>Validation Error:</strong> <?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?>
+        </div>
+    </div>
+<?php } ?>
 
 <form method="POST">
     <div class="row g-4 justify-content-center">

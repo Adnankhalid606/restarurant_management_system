@@ -5,6 +5,10 @@ session_start();
 require_once "../config/database.php";
 
 $error = "";
+if (isset($_GET["error"]) && $_GET["error"] === "deactivated") {
+    $error = "Your account has been deactivated. Please contact your system administrator.";
+}
+
 if (isset($_SESSION["user_id"])) {
     header("Location: ../index.php");
     exit;

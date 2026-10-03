@@ -29,38 +29,54 @@ if (!$expense) {
     die("Expense not found.");
 }
 
+$error = "";
+
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $expense_head = $_POST["expense_head"];
-    $description = $_POST["description"];
-    $amount = $_POST["amount"];
-    $expense_date = $_POST["expense_date"];
+    $expense_head = preg_replace('/\s+/', ' ', trim($_POST["expense_head"] ?? ""));
+    $description = preg_replace('/\s+/', ' ', trim($_POST["description"] ?? ""));
+    $amount_raw = trim($_POST["amount"] ?? "");
+    $expense_date = trim($_POST["expense_date"] ?? "");
 
-    $sql = "UPDATE expenses
+    if ($expense_head === "") {
+        $error = "Expense head / category is required.";
+    } elseif (!is_numeric($amount_raw) || (float) $amount_raw <= 0) {
+        $error = "Expense amount must be a valid numeric amount greater than zero.";
+    } elseif ($expense_date === "") {
+        $error = "Expense transaction date is required.";
+    } else {
+        $amount = (float) $amount_raw;
 
-            SET expense_head = ?,
-                description = ?,
-                amount = ?,
-                expense_date = ?
+        try {
+            $sql = "UPDATE expenses
 
-            WHERE id = ?";
+                    SET expense_head = ?,
+                        description = ?,
+                        amount = ?,
+                        expense_date = ?
 
-    $stmt = mysqli_prepare($conn, $sql);
+                    WHERE id = ?";
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        "ssdsi",
-        $expense_head,
-        $description,
-        $amount,
-        $expense_date,
-        $id
-    );
+            $stmt = mysqli_prepare($conn, $sql);
 
-    mysqli_stmt_execute($stmt);
+            mysqli_stmt_bind_param(
+                $stmt,
+                "ssdsi",
+                $expense_head,
+                $description,
+                $amount,
+                $expense_date,
+                $id
+            );
 
-    header("Location: index.php");
-    exit;
+            mysqli_stmt_execute($stmt);
+
+            header("Location: index.php");
+            exit;
+        } catch (mysqli_sql_exception $e) {
+            $error = "Database error while updating expense voucher.";
+        }
+    }
 }
 
 $page_title = "Edit Expense #" . $expense["id"];
@@ -94,8 +110,16 @@ require_once "../includes/header.php";
             <i class="bi bi-trash"></i>
             <span>Delete</span>
         </a>
-    </div>
 </div>
+
+<?php if ($error !== "") { ?>
+    <div class="alert alert-danger d-flex align-items-center mb-4 shadow-sm" role="alert">
+        <i class="bi bi-exclamation-triangle-fill fs-5 me-2 flex-shrink-0"></i>
+        <div>
+            <strong>Validation Error:</strong> <?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?>
+        </div>
+    </div>
+<?php } ?>
 
 <form method="POST">
     <div class="row g-4 justify-content-center">

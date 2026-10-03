@@ -23,17 +23,31 @@ $error = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $customer_id = $_POST["customer_id"];
-    $table_id = $_POST["table_id"];
-    $reservation_date = $_POST["reservation_date"];
-    $reservation_time = $_POST["reservation_time"];
-    $reservation_end_time = $_POST["reservation_end_time"];
-    $guests = $_POST["guests"];
-    $status = $_POST["status"];
-    if ($reservation_end_time <= $reservation_time) {
+    $customer_id = (int) ($_POST["customer_id"] ?? 0);
+    $table_id = (int) ($_POST["table_id"] ?? 0);
+    $reservation_date = trim($_POST["reservation_date"] ?? "");
+    $reservation_time = trim($_POST["reservation_time"] ?? "");
+    $reservation_end_time = trim($_POST["reservation_end_time"] ?? "");
+    $guests = (int) ($_POST["guests"] ?? 0);
+    $status = trim($_POST["status"] ?? "pending");
+    $valid_statuses = ["pending", "confirmed", "completed", "cancelled"];
 
+    if ($customer_id <= 0) {
+        $error = "Please select a valid customer.";
+    } elseif ($table_id <= 0) {
+        $error = "Please select a valid table.";
+    } elseif ($reservation_date === "" || strtotime($reservation_date) < strtotime(date('Y-m-d'))) {
+        $error = "Reservation date cannot be in the past.";
+    } elseif ($reservation_time === "" || $reservation_end_time === "") {
+        $error = "Please provide valid start and end times.";
+    } elseif ($reservation_end_time <= $reservation_time) {
         $error = "End time must be after start time.";
+    } elseif ($guests <= 0) {
+        $error = "Number of guests must be at least 1.";
+    } elseif (!in_array($status, $valid_statuses, true)) {
+        $error = "Invalid reservation status.";
     }
+
     if ($error === "") {
 
         //Check table capacity

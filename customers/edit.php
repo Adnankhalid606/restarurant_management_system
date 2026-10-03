@@ -23,37 +23,53 @@ if (!$customer) {
     die("Customer not found.");
 }
 
+$error = "";
+
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $name = $_POST["name"];
-    $phone = $_POST["phone"];
-    $address = $_POST["address"];
+    $name = preg_replace('/\s+/', ' ', trim($_POST["name"] ?? ""));
+    $phone = trim($_POST["phone"] ?? "");
+    $address = preg_replace('/\s+/', ' ', trim($_POST["address"] ?? ""));
 
-    $sql = "UPDATE customers
-            SET name = ?, phone = ?, address = ?
-            WHERE id = ?";
+    if ($name === "") {
+        $error = "Customer full name is required and cannot be empty or whitespace only.";
+    } elseif (mb_strlen($name) < 2 || mb_strlen($name) > 100) {
+        $error = "Customer name must be between 2 and 100 characters.";
+    } else {
+        try {
+            $sql = "UPDATE customers
+                    SET name = ?, phone = ?, address = ?
+                    WHERE id = ?";
 
-    $stmt = mysqli_prepare($conn, $sql);
+            $stmt = mysqli_prepare($conn, $sql);
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        "sssi",
-        $name,
-        $phone,
-        $address,
-        $id
-    );
+            mysqli_stmt_bind_param(
+                $stmt,
+                "sssi",
+                $name,
+                $phone,
+                $address,
+                $id
+            );
 
-    mysqli_stmt_execute($stmt);
+            mysqli_stmt_execute($stmt);
 
-    header("Location: index.php");
-    exit;
+            header("Location: index.php");
+            exit;
+        } catch (mysqli_sql_exception $e) {
+            $error = "Database error while updating customer profile.";
+        }
+    }
 }
 
 $page_title = "Edit Customer #" . $id;
 $active_menu = "customers";
 
 require_once "../includes/header.php";
+
+$display_name = isset($_POST["name"]) ? $name : $customer["name"];
+$display_phone = isset($_POST["phone"]) ? $phone : $customer["phone"];
+$display_address = isset($_POST["address"]) ? $address : $customer["address"];
 ?>
 
 <!-- Page Header Bar -->
@@ -78,6 +94,15 @@ require_once "../includes/header.php";
 
 <div class="row justify-content-center">
     <div class="col-12 col-md-8 col-lg-6">
+        <?php if ($error !== "") { ?>
+            <div class="alert alert-danger d-flex align-items-center mb-4 shadow-sm" role="alert">
+                <i class="bi bi-exclamation-triangle-fill fs-5 me-2 flex-shrink-0"></i>
+                <div>
+                    <strong>Validation Error:</strong> <?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?>
+                </div>
+            </div>
+        <?php } ?>
+
         <div class="pos-card shadow-sm">
             <div class="pos-card-header bg-light d-flex align-items-center justify-content-between">
                 <span class="pos-card-title">

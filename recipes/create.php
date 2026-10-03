@@ -25,76 +25,68 @@ $error_message = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $menu_item_id = $_POST["menu_item_id"];
+    $menu_item_id = isset($_POST["menu_item_id"]) ? (int) $_POST["menu_item_id"] : 0;
     $raw_material_ids = $_POST["raw_material_id"] ?? [];
     $quantities = $_POST["quantity"] ?? [];
 
+    if ($menu_item_id <= 0) {
+        $error_message = "Please select a valid menu item.";
+    } else {
+        // Check if recipe already exists for this menu item
+        $check_sql = "SELECT id FROM recipes WHERE menu_item_id = ? LIMIT 1";
+        $check_stmt = mysqli_prepare($conn, $check_sql);
+        mysqli_stmt_bind_param($check_stmt, "i", $menu_item_id);
+        mysqli_stmt_execute($check_stmt);
+        $existing_recipe = mysqli_fetch_assoc(mysqli_stmt_get_result($check_stmt));
 
-    mysqli_begin_transaction($conn);
+        if ($existing_recipe) {
+            $error_message = "A recipe already exists for this menu item. Please edit the existing recipe instead.";
+        } else {
+            mysqli_begin_transaction($conn);
 
-    try {
+            try {
+                // Create recipe
+                $sql = "INSERT INTO recipes
+                        (menu_item_id)
+                        VALUES (?)";
 
-        // Create recipe
+                $stmt = mysqli_prepare($conn, $sql);
+                mysqli_stmt_bind_param($stmt, "i", $menu_item_id);
 
-        $sql = "INSERT INTO recipes
-                (menu_item_id)
-                VALUES (?)";
+                if (!mysqli_stmt_execute($stmt)) {
+                    throw new Exception("Failed to create recipe record.");
+                }
 
-        $stmt = mysqli_prepare($conn, $sql);
+                $recipe_id = mysqli_insert_id($conn);
 
-        mysqli_stmt_bind_param(
-            $stmt,
-            "i",
-            $menu_item_id
-        );
+                // Create recipe items
+                for ($i = 0; $i < count($raw_material_ids); $i++) {
+                    $raw_material_id = (int) $raw_material_ids[$i];
+                    $quantity = (float) $quantities[$i];
 
-        if (!mysqli_stmt_execute($stmt)) {
-            throw new Exception("Failed to create recipe.");
-        }
+                    if ($raw_material_id > 0 && $quantity > 0) {
+                        $sql = "INSERT INTO recipe_items
+                                (recipe_id, raw_material_id, quantity)
+                                VALUES (?, ?, ?)";
 
-        $recipe_id = mysqli_insert_id($conn);
+                        $stmt = mysqli_prepare($conn, $sql);
+                        mysqli_stmt_bind_param($stmt, "iid", $recipe_id, $raw_material_id, $quantity);
 
+                        if (!mysqli_stmt_execute($stmt)) {
+                            throw new Exception("Failed to add recipe ingredient.");
+                        }
+                    }
+                }
 
-        // Create recipe items
+                mysqli_commit($conn);
 
-        for ($i = 0; $i < count($raw_material_ids); $i++) {
-
-            $raw_material_id = $raw_material_ids[$i];
-            $quantity = $quantities[$i];
-
-
-            $sql = "INSERT INTO recipe_items
-                    (recipe_id, raw_material_id, quantity)
-                    VALUES (?, ?, ?)";
-
-            $stmt = mysqli_prepare($conn, $sql);
-
-            mysqli_stmt_bind_param(
-                $stmt,
-                "iid",
-                $recipe_id,
-                $raw_material_id,
-                $quantity
-            );
-
-            if (!mysqli_stmt_execute($stmt)) {
-                throw new Exception("Failed to add recipe ingredient.");
+                header("Location: view.php?id=" . $recipe_id);
+                exit;
+            } catch (Exception $error) {
+                mysqli_rollback($conn);
+                $error_message = $error->getMessage();
             }
         }
-
-
-        // Everything successful
-
-        mysqli_commit($conn);
-
-
-        header("Location: view.php?id=" . $recipe_id);
-        exit;
-    } catch (Exception $error) {
-
-        mysqli_rollback($conn);
-
-        $error_message = $error->getMessage();
     }
 }
 

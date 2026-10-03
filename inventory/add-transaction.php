@@ -12,77 +12,84 @@ $materials = mysqli_query(
      ORDER BY name ASC"
 );
 
+$error = "";
+
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-    $raw_material_id = $_POST["raw_material_id"];
-    $type = $_POST["type"];
-    $quantity = $_POST["quantity"];
+    $raw_material_id = isset($_POST["raw_material_id"]) ? (int) $_POST["raw_material_id"] : 0;
+    $type = trim($_POST["type"] ?? "");
+    $quantity_raw = trim($_POST["quantity"] ?? "");
+    $valid_types = ["purchase", "adjustment_in", "consumption", "adjustment_out"];
 
-    mysqli_begin_transaction($conn);
+    if ($raw_material_id <= 0) {
+        $error = "Please select a valid raw material.";
+    } elseif (!in_array($type, $valid_types, true)) {
+        $error = "Invalid transaction type selected.";
+    } elseif (!is_numeric($quantity_raw) || (float) $quantity_raw <= 0) {
+        $error = "Transaction quantity must be strictly greater than zero.";
+    } else {
+        $quantity = (float) $quantity_raw;
 
-    try {
+        mysqli_begin_transaction($conn);
 
-        // Create inventory transaction
+        try {
+            // 1. Fetch and lock raw material to check stock
+            $mat_stmt = mysqli_prepare($conn, "SELECT id, name, unit, current_stock FROM raw_materials WHERE id = ? FOR UPDATE");
+            mysqli_stmt_bind_param($mat_stmt, "i", $raw_material_id);
+            mysqli_stmt_execute($mat_stmt);
+            $material = mysqli_fetch_assoc(mysqli_stmt_get_result($mat_stmt));
 
-        $sql = "INSERT INTO inventory_transactions
-                (raw_material_id, type, quantity)
-                VALUES (?, ?, ?)";
+            if (!$material) {
+                throw new Exception("Selected raw material does not exist.");
+            }
 
-        $stmt = mysqli_prepare($conn, $sql);
+            $current_stock = (float) $material["current_stock"];
 
-        mysqli_stmt_bind_param(
-            $stmt,
-            "isd",
-            $raw_material_id,
-            $type,
-            $quantity
-        );
+            // 2. For deductions, verify sufficient stock is available
+            if ($type === "consumption" || $type === "adjustment_out") {
+                if ($quantity > $current_stock) {
+                    throw new Exception("Insufficient stock available. Current stock of " . $material["name"] . " is " . number_format($current_stock, 3) . " " . $material["unit"] . ".");
+                }
+            }
 
-        if (!mysqli_stmt_execute($stmt)) {
-            throw new Exception("Failed to create inventory transaction.");
+            // 3. Create inventory transaction
+            $sql = "INSERT INTO inventory_transactions
+                    (raw_material_id, type, quantity)
+                    VALUES (?, ?, ?)";
+
+            $stmt = mysqli_prepare($conn, $sql);
+            mysqli_stmt_bind_param($stmt, "isd", $raw_material_id, $type, $quantity);
+
+            if (!mysqli_stmt_execute($stmt)) {
+                throw new Exception("Failed to create inventory transaction.");
+            }
+
+            // 4. Update stock balance
+            if ($type === "purchase" || $type === "adjustment_in") {
+                $sql = "UPDATE raw_materials
+                        SET current_stock = current_stock + ?
+                        WHERE id = ?";
+            } else {
+                $sql = "UPDATE raw_materials
+                        SET current_stock = current_stock - ?
+                        WHERE id = ?";
+            }
+
+            $stmt = mysqli_prepare($conn, $sql);
+            mysqli_stmt_bind_param($stmt, "di", $quantity, $raw_material_id);
+
+            if (!mysqli_stmt_execute($stmt)) {
+                throw new Exception("Failed to update inventory stock balance.");
+            }
+
+            mysqli_commit($conn);
+
+            header("Location: materials.php");
+            exit;
+        } catch (Exception $e) {
+            mysqli_rollback($conn);
+            $error = $e->getMessage();
         }
-
-        // Update stock
-
-        if (
-            $type === "purchase" ||
-            $type === "adjustment_in"
-        ) {
-
-            $sql = "UPDATE raw_materials
-                    SET current_stock = current_stock + ?
-                    WHERE id = ?";
-        } else {
-
-            $sql = "UPDATE raw_materials
-                    SET current_stock = current_stock - ?
-                    WHERE id = ?";
-        }
-
-        $stmt = mysqli_prepare($conn, $sql);
-
-        mysqli_stmt_bind_param(
-            $stmt,
-            "di",
-            $quantity,
-            $raw_material_id
-        );
-
-        if (!mysqli_stmt_execute($stmt)) {
-            throw new Exception("Failed to update stock.");
-        }
-
-        // Everything successful
-
-        mysqli_commit($conn);
-
-        header("Location: materials.php");
-        exit;
-    } catch (Exception $error) {
-
-        mysqli_rollback($conn);
-
-        die($error->getMessage());
     }
 }
 
@@ -116,6 +123,15 @@ $posted_qty = $_POST["quantity"] ?? "";
 
 <div class="row justify-content-center">
     <div class="col-12 col-md-8 col-lg-6">
+        <?php if ($error !== "") { ?>
+            <div class="alert alert-danger d-flex align-items-center mb-4 shadow-sm" role="alert">
+                <i class="bi bi-exclamation-triangle-fill fs-5 me-2 flex-shrink-0"></i>
+                <div>
+                    <strong>Inventory Error:</strong> <?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?>
+                </div>
+            </div>
+        <?php } ?>
+
         <div class="pos-card shadow-sm">
             <div class="pos-card-header bg-light">
                 <span class="pos-card-title">

@@ -373,7 +373,7 @@ ALTER TABLE `raw_materials`
 --
 ALTER TABLE `recipes`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `menu_item_id` (`menu_item_id`);
+  ADD UNIQUE KEY `uq_recipe_menu_item` (`menu_item_id`);
 
 --
 -- Indexes for table `recipe_items`
