@@ -2,9 +2,10 @@
 -- version 5.2.1
 -- https://www.phpmyadmin.net/
 --
--- Host: localhost
+-- Host: 127.0.0.1
+-- Generation Time: Oct 03, 2026 at 02:00 AM
 -- Server version: 10.4.32-MariaDB
--- PHP Version: 8.0.30
+-- PHP Version: 8.2.12
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -274,13 +275,23 @@ CREATE TABLE `suppliers` (
 CREATE TABLE `users` (
   `id` int(11) NOT NULL,
   `name` varchar(100) NOT NULL,
-  `username` varchar(50) NOT NULL,
+  `username` varchar(100) NOT NULL,
   `email` varchar(150) NOT NULL,
   `password` varchar(255) NOT NULL,
   `role` enum('admin','waiter','kitchen') NOT NULL DEFAULT 'waiter',
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `users`
+--
+
+INSERT INTO `users` (`id`, `name`, `username`, `email`, `password`, `role`, `is_active`, `created_at`) VALUES
+(3, 'Admin', 'admin', 'admin@gmail.com', 'admin123', 'admin', 1, '2026-10-02 22:14:41'),
+(4, 'Waiter', 'waiter', 'waiter@gmail.com', 'waiter123', 'waiter', 1, '2026-10-02 22:16:40'),
+(5, 'Kitchen', 'kitchen', 'kitchen@gmail.com', 'kitchen123', 'kitchen', 1, '2026-10-02 22:54:09'),
+(6, 'Ahmed Khan', 'admed_khan', 'ahmed123@gmail.com', 'admed123', 'waiter', 1, '2026-10-02 23:19:40');
 
 --
 -- Indexes for dumped tables
@@ -291,7 +302,8 @@ CREATE TABLE `users` (
 --
 ALTER TABLE `bills`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `order_id` (`order_id`);
+  ADD UNIQUE KEY `uq_bill_order_id` (`order_id`),
+  ADD KEY `order_id` (`order_id`);
 
 --
 -- Indexes for table `customers`
@@ -404,8 +416,8 @@ ALTER TABLE `suppliers`
 --
 ALTER TABLE `users`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `username` (`username`),
-  ADD UNIQUE KEY `email` (`email`);
+  ADD UNIQUE KEY `email` (`email`),
+  ADD UNIQUE KEY `username` (`username`);
 
 --
 -- AUTO_INCREMENT for dumped tables
@@ -511,7 +523,7 @@ ALTER TABLE `suppliers`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- Constraints for dumped tables
