@@ -26,6 +26,15 @@ $no_shell = $no_shell ?? false;
     <link rel="stylesheet" href="<?php echo $base_path; ?>assets/vendor/bootstrap-icons/bootstrap-icons.min.css">
     
     <link rel="stylesheet" href="<?php echo $base_path; ?>assets/css/style.css">
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('restobar_theme');
+                const theme = savedTheme ? savedTheme : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-bs-theme', theme);
+            } catch(e) {}
+        })();
+    </script>
 </head>
 <body class="pos-body">
 

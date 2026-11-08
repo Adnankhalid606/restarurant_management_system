@@ -57,6 +57,36 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Accessible Theme Controller
+    const themeBtn = document.getElementById('themeToggleBtn');
+    function updateThemeToggleUI(theme) {
+        if (!themeBtn) return;
+        const isDark = theme === 'dark';
+        themeBtn.setAttribute('aria-checked', isDark ? 'true' : 'false');
+        themeBtn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+        themeBtn.setAttribute('title', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+    }
+
+    if (themeBtn) {
+        const initialTheme = document.documentElement.getAttribute('data-bs-theme') || 'light';
+        updateThemeToggleUI(initialTheme);
+
+        themeBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const currentTheme = document.documentElement.getAttribute('data-bs-theme') || 'light';
+            const targetTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            document.documentElement.setAttribute('data-bs-theme', targetTheme);
+            updateThemeToggleUI(targetTheme);
+            
+            try {
+                localStorage.setItem('restobar_theme', targetTheme);
+            } catch(err) {
+                console.warn('localStorage is unavailable:', err);
+            }
+        });
+    }
 });
 </script>
 

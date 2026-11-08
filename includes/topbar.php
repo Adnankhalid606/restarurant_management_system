@@ -43,6 +43,22 @@ if ($role === 'admin') {
     </div>
 
     <div class="topbar-right">
+        <!-- Theme Toggle Switch (Single accessible pill control) -->
+        <button class="theme-toggle-btn" 
+                id="themeToggleBtn" 
+                type="button" 
+                role="switch" 
+                aria-checked="false" 
+                aria-label="Switch to dark mode" 
+                title="Switch to dark mode">
+            <span class="theme-toggle-track">
+                <span class="theme-toggle-thumb">
+                    <i class="bi bi-sun-fill theme-icon-sun"></i>
+                    <i class="bi bi-moon-stars-fill theme-icon-moon"></i>
+                </span>
+            </span>
+        </button>
+
         <!-- Live Shift Date Badge -->
         <span class="badge bg-light text-secondary border d-none d-md-inline-flex align-items-center gap-1 py-2 px-3">
             <i class="bi bi-calendar3"></i>
