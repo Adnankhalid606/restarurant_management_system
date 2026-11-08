@@ -79,7 +79,7 @@ while ($row = mysqli_fetch_assoc($result)) {
 }
 
 $page_title = "Customer Ledger — " . htmlspecialchars($customer["name"]);
-$active_menu = "customer-ledger";
+$active_menu = "customers";
 
 require_once "../includes/header.php";
 
@@ -110,11 +110,11 @@ require_once "../includes/header.php";
 <div class="page-header-bar d-print-none">
     <div>
         <div class="d-flex align-items-center gap-2 mb-1">
-            <a href="index.php" class="text-muted small text-decoration-none">
-                <i class="bi bi-journal-text me-1"></i>Customer Ledger
+            <a href="../customers/index.php" class="text-muted small text-decoration-none">
+                <i class="bi bi-people me-1"></i>Customers
             </a>
             <span class="text-muted small">/</span>
-            <span class="text-dark small fw-semibold">Account Statement</span>
+            <span class="text-dark small fw-semibold">Customer Ledger Statement</span>
         </div>
         <h2 class="page-header-title">
             <?php echo htmlspecialchars($customer["name"]); ?>
@@ -124,9 +124,9 @@ require_once "../includes/header.php";
         </h2>
     </div>
     <div class="d-flex align-items-center gap-2">
-        <a href="index.php" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1 shadow-sm">
+        <a href="../customers/index.php" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1 shadow-sm">
             <i class="bi bi-arrow-left"></i>
-            <span>Ledger Register</span>
+            <span>Back to Customers</span>
         </a>
         <a href="../customers/edit.php?id=<?php echo $customer["id"]; ?>" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1 shadow-sm">
             <i class="bi bi-pencil"></i>

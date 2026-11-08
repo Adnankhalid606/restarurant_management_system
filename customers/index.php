@@ -172,10 +172,10 @@ require_once "../includes/header.php";
                             <td class="text-end">
                                 <div class="d-inline-flex align-items-center gap-1">
                                     <?php if (($_SESSION['role'] ?? '') === 'admin') { ?>
-                                        <a href="../customer-ledger/index.php?customer_id=<?php echo $c['id']; ?>" 
+                                        <a href="../customer-ledger/view.php?id=<?php echo $c['id']; ?>" 
                                            class="btn btn-outline-secondary btn-sm" 
-                                           title="Customer Financial Ledger">
-                                            <i class="bi bi-journal-text"></i>
+                                           title="Customer Financial Statement &amp; Ledger">
+                                            <i class="bi bi-journal-text text-primary"></i>
                                         </a>
                                     <?php } ?>
 

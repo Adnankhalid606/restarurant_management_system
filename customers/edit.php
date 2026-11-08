@@ -91,8 +91,8 @@ $display_address = isset($_POST["address"]) ? $address : $customer["address"];
             <span>Back to Customers</span>
         </a>
         <?php if (($_SESSION['role'] ?? '') === 'admin') { ?>
-            <a href="../customer-ledger/index.php?customer_id=<?php echo $id; ?>" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1">
-                <i class="bi bi-journal-text"></i>
+            <a href="../customer-ledger/view.php?id=<?php echo $id; ?>" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1">
+                <i class="bi bi-journal-text text-primary"></i>
                 <span>Customer Ledger</span>
             </a>
         <?php } ?>

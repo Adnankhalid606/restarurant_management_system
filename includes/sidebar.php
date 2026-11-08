@@ -144,18 +144,6 @@ function isItemActive($key, $script_name, $active_menu) {
                 <span>Expenses</span>
             </a>
 
-            <a href="<?php echo $base_path; ?>customer-ledger/index.php" 
-               class="sidebar-link <?php echo isItemActive('customer-ledger', $script_name, $active_menu) ? 'active' : ''; ?>">
-                <i class="bi bi-journal-text"></i>
-                <span>Customer Ledger</span>
-            </a>
-
-            <a href="<?php echo $base_path; ?>supplier-ledger/index.php" 
-               class="sidebar-link <?php echo isItemActive('supplier-ledger', $script_name, $active_menu) ? 'active' : ''; ?>">
-                <i class="bi bi-journal-bookmark"></i>
-                <span>Supplier Ledger</span>
-            </a>
-
             <a href="<?php echo $base_path; ?>salary/index.php" 
                class="sidebar-link <?php echo isItemActive('salary', $script_name, $active_menu) ? 'active' : ''; ?>">
                 <i class="bi bi-credit-card-2-front"></i>

@@ -191,7 +191,7 @@ require_once "./includes/header.php";
             <div class="pos-card h-100">
                 <div class="pos-card-header">
                     <span class="pos-card-title"><i class="bi bi-cash-coin me-2 text-primary"></i>Finance &amp; Ledgers</span>
-                    <span class="badge bg-light text-muted border">5 Modules</span>
+                    <span class="badge bg-light text-muted border">3 Modules</span>
                 </div>
                 <div class="pos-card-body p-2">
                     <ul class="module-nav-list">
@@ -204,18 +204,6 @@ require_once "./includes/header.php";
                         <li class="module-nav-item">
                             <a href="./expenses/index.php" class="module-nav-link">
                                 <span class="nav-item-left"><i class="bi bi-wallet2"></i><span>Expenses</span></span>
-                                <span class="nav-item-right"><i class="bi bi-chevron-right"></i></span>
-                            </a>
-                        </li>
-                        <li class="module-nav-item">
-                            <a href="./customer-ledger/index.php" class="module-nav-link">
-                                <span class="nav-item-left"><i class="bi bi-journal-text"></i><span>Customer Ledger</span></span>
-                                <span class="nav-item-right"><i class="bi bi-chevron-right"></i></span>
-                            </a>
-                        </li>
-                        <li class="module-nav-item">
-                            <a href="./supplier-ledger/index.php" class="module-nav-link">
-                                <span class="nav-item-left"><i class="bi bi-journal-bookmark"></i><span>Supplier Ledger</span></span>
                                 <span class="nav-item-right"><i class="bi bi-chevron-right"></i></span>
                             </a>
                         </li>
