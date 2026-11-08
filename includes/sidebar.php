@@ -4,9 +4,8 @@
  * Respects existing session role: admin, waiter, kitchen
  */
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/helpers.php';
+start_secure_session();
 
 $role = $_SESSION["role"] ?? "";
 $user_name = $_SESSION["user_name"] ?? "Staff";

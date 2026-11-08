@@ -1,9 +1,6 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
 require_once __DIR__ . '/helpers.php';
+start_secure_session();
 
 if (!isset($base_path)) {
     $base_path = file_exists('./config/database.php') ? './' : '../';

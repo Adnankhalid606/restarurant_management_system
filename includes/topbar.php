@@ -1,9 +1,7 @@
 <?php
 
-
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/helpers.php';
+start_secure_session();
 
 $role = $_SESSION["role"] ?? "staff";
 $user_name = $_SESSION["user_name"] ?? "Staff";

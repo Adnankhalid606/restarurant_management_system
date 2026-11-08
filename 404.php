@@ -6,9 +6,8 @@
 
 http_response_code(404);
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/includes/helpers.php';
+start_secure_session();
 
 $is_logged_in = isset($_SESSION['user_id']);
 $base_path = '/restaurant_pos/';

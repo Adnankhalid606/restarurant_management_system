@@ -65,3 +65,72 @@ if (!function_exists('formatTime')) {
         return date('h:i A', $ts);
     }
 }
+
+if (!function_exists('start_secure_session')) {
+    /**
+     * Start or resume a session with secure cookie parameters.
+     * Prevents duplicate session initialization and sets HttpOnly, SameSite, and Secure flags.
+     */
+    function start_secure_session() {
+        if (session_status() === PHP_SESSION_NONE) {
+            if (!headers_sent()) {
+                $is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                    || (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443)
+                    || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+
+                $current_params = session_get_cookie_params();
+
+                session_set_cookie_params([
+                    'lifetime' => $current_params['lifetime'] ?? 0,
+                    'path' => $current_params['path'] ?? '/',
+                    'domain' => $current_params['domain'] ?? '',
+                    'secure' => $is_https,
+                    'httponly' => true,
+                    'samesite' => 'Lax'
+                ]);
+            }
+            session_start();
+        }
+    }
+}
+
+if (!function_exists('get_app_base_path')) {
+    /**
+     * Determine the web application root path (e.g. "/restaurant_pos/") dynamically.
+     * Works seamlessly regardless of host subdirectory, virtual host, or nested request URL.
+     *
+     * @return string Normalized root URI with trailing slash (e.g. "/restaurant_pos/")
+     */
+    function get_app_base_path() {
+        $project_root = str_replace('\\', '/', dirname(__DIR__));
+        $doc_root = str_replace('\\', '/', $_SERVER['DOCUMENT_ROOT'] ?? '');
+
+        if (!empty($doc_root) && strpos($project_root, $doc_root) === 0) {
+            $relative = substr($project_root, strlen($doc_root));
+            return '/' . trim($relative, '/') . '/';
+        }
+
+        // Fallback using script path deduction
+        $script_dir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
+        $app_dir = preg_replace('#/(auth|bills|customers|customer-ledger|expenses|inventory|kitchen|menu|orders|purchases|recipes|reports|reservations|salary|supplier-ledger|suppliers|table|users)(/.*)?$#i', '', $script_dir);
+        return '/' . trim($app_dir, '/') . '/';
+    }
+}
+
+if (!function_exists('get_login_url')) {
+    /**
+     * Return absolute path to login page with optional query parameters.
+     *
+     * @param array $params Optional query key-value pairs
+     * @return string
+     */
+    function get_login_url(array $params = []) {
+        $base = get_app_base_path();
+        $url = rtrim($base, '/') . '/auth/login.php';
+        if (!empty($params)) {
+            $url .= '?' . http_build_query($params);
+        }
+        return $url;
+    }
+}
+

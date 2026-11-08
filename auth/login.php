@@ -1,12 +1,17 @@
 <?php
 
-session_start();
+require_once __DIR__ . "/../includes/helpers.php";
+start_secure_session();
 
 require_once "../config/database.php";
 
 $error = "";
-if (isset($_GET["error"]) && $_GET["error"] === "deactivated") {
-    $error = "Your account has been deactivated. Please contact your system administrator.";
+if (isset($_GET["error"])) {
+    if ($_GET["error"] === "deactivated") {
+        $error = "Your account has been deactivated. Please contact your system administrator.";
+    } elseif ($_GET["error"] === "expired") {
+        $error = "Your session has expired due to 30 minutes of inactivity. Please sign in again.";
+    }
 }
 
 if (isset($_SESSION["user_id"])) {
@@ -55,6 +60,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $_SESSION["username"] = $user["username"];
             $_SESSION["user_email"] = $user["email"];
             $_SESSION["role"] = $user["role"];
+            $_SESSION["last_activity"] = time();
 
             header("Location: ../index.php");
             exit;

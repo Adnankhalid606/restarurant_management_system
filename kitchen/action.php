@@ -11,9 +11,8 @@ require_once __DIR__ . '/../includes/role.php';
 require_once __DIR__ . '/service.php';
 
 // Authentication & Permission Verification
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/../includes/helpers.php';
+start_secure_session();
 
 $user_role = $_SESSION['role'] ?? '';
 if (!in_array($user_role, ['admin', 'kitchen'], true)) {
