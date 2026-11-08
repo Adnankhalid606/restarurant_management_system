@@ -451,6 +451,45 @@ h6,
   border: 1px solid #fecaca;
 }
 
+
+/* KDS Cancel Order Button */
+.kds-cancel-trigger {
+    border: 1px solid rgba(220, 53, 69, 0.35);
+    border-radius: 6px;
+    background: transparent;
+    color: #dc3545 !important;
+    transition: background-color 0.2s ease,
+                border-color 0.2s ease,
+                color 0.2s ease;
+}
+
+/* Light Theme Hover */
+[data-bs-theme="light"] .kds-cancel-trigger:hover {
+    background-color: #fff1f2;
+    border-color: #dc3545;
+    color: #b02a37 !important;
+}
+
+/* Dark Theme */
+[data-bs-theme="dark"] .kds-cancel-trigger {
+    border-color: rgba(248, 113, 113, 0.3);
+    color: #f87171 !important;
+}
+
+/* Dark Theme Hover */
+[data-bs-theme="dark"] .kds-cancel-trigger:hover {
+    background-color: rgba(239, 68, 68, 0.12);
+    border-color: #f87171;
+    color: #fca5a5 !important;
+}
+
+/* Keyboard Accessibility */
+.kds-cancel-trigger:focus-visible {
+    outline: 2px solid #ef4444;
+    outline-offset: 2px;
+}
+
+
 .badge-status-pickup,
 .badge-status-delivery,
 .badge-status-general {
@@ -734,8 +773,18 @@ h6,
   padding: 0.75rem 1rem;
   border: 1px solid var(--pos-border);
   border-radius: 6px;
-  background-color: #ffffff;
+  background-color: var(--pos-surface);
+  color: var(--pos-text);
   margin-bottom: 0.5rem;
+}
+
+.kds-age-pill {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.2rem 0.55rem;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .kds-qty-badge {
@@ -1916,11 +1965,25 @@ h6,
 }
 
 [data-bs-theme="dark"] .kds-item-row {
-  border-bottom: 1px solid var(--surface-elevated) !important;
+  background-color: var(--surface-elevated) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-bs-theme="dark"] .kds-qty-badge {
+  background-color: var(--surface-bg) !important;
+  color: var(--pos-accent) !important;
+  border: 1px solid var(--border-color) !important;
 }
 
 [data-bs-theme="dark"] .kds-food-title {
   color: var(--text-primary) !important;
+}
+
+[data-bs-theme="dark"] .kds-age-pill {
+  background-color: var(--surface-elevated) !important;
+  color: var(--text-secondary) !important;
+  border-color: var(--border-color) !important;
 }
 
 /* Dining Table Cards */

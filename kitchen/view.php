@@ -2,6 +2,7 @@
 
 require_once "../config/database.php";
 require_once "../includes/role.php";
+require_once __DIR__ . "/service.php";
 
 requireRole(["admin", "kitchen"]);
 
@@ -84,6 +85,23 @@ mysqli_stmt_execute($stmt);
 
 $items = mysqli_stmt_get_result($stmt);
 
+// Handle inline action trigger from view page if submitted
+$flash_success = $_SESSION['flash_success'] ?? '';
+$flash_error = $_SESSION['flash_error'] ?? '';
+unset($_SESSION['flash_success'], $_SESSION['flash_error']);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_status'])) {
+    $target_status = trim($_POST['action_status']);
+    $res = transitionKitchenOrderStatus($conn, $id, $target_status);
+    if ($res['success']) {
+        $_SESSION['flash_success'] = $res['message'];
+        header("Location: view.php?id=" . $id);
+        exit;
+    } else {
+        $flash_error = $res['message'];
+    }
+}
+
 $page_title = "Kitchen Ticket #" . $id;
 $active_menu = "kitchen";
 
@@ -108,7 +126,7 @@ $status_class = match($order["status"]) {
                 <?php echo htmlspecialchars($order["status"], ENT_QUOTES, 'UTF-8'); ?>
             </span>
             <?php if ($order["order_type"] === "dine_in") { ?>
-                <span class="badge bg-light text-dark border"><i class="bi bi-grid-3x3-gap text-muted me-1"></i>Table <?php echo htmlspecialchars($order["table_number"] ?? "-", ENT_QUOTES, 'UTF-8'); ?></span>
+                <span class="badge bg-light text-secondary border"><i class="bi bi-grid-3x3-gap text-primary me-1"></i>Table <?php echo htmlspecialchars($order["table_number"] ?? "-", ENT_QUOTES, 'UTF-8'); ?></span>
             <?php } elseif ($order["order_type"] === "pickup") { ?>
                 <span class="badge bg-light text-muted border"><i class="bi bi-bag me-1"></i>Pickup</span>
             <?php } elseif ($order["order_type"] === "delivery") { ?>
@@ -124,22 +142,36 @@ $status_class = match($order["status"]) {
             <i class="bi bi-arrow-left"></i>
             <span>Back to Kitchen Queue</span>
         </a>
-        <?php if ($order["status"] !== "completed") { ?>
-            <a href="update-status.php?id=<?php echo $order["id"]; ?>" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1">
-                <i class="bi bi-arrow-repeat"></i>
-                <span>Update Status</span>
+        <?php if (!in_array($order["status"], ['completed', 'cancelled'], true)) { ?>
+            <a href="update-status.php?id=<?php echo $order["id"]; ?>" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1" title="Advanced workflow options">
+                <i class="bi bi-sliders"></i>
+                <span class="d-none d-sm-inline">Workflow Options</span>
             </a>
         <?php } ?>
     </div>
 </div>
 
+<?php if (!empty($flash_success)) { ?>
+    <div class="alert alert-success d-flex align-items-center py-2 px-3 mb-4 border-success-subtle shadow-sm">
+        <i class="bi bi-check-circle-fill text-success me-2 fs-5"></i>
+        <div class="small fw-medium"><?php echo htmlspecialchars($flash_success, ENT_QUOTES, 'UTF-8'); ?></div>
+    </div>
+<?php } ?>
+
+<?php if (!empty($flash_error)) { ?>
+    <div class="alert alert-danger d-flex align-items-center py-2 px-3 mb-4 border-danger-subtle shadow-sm">
+        <i class="bi bi-exclamation-triangle-fill text-danger me-2 fs-5"></i>
+        <div class="small fw-medium"><?php echo htmlspecialchars($flash_error, ENT_QUOTES, 'UTF-8'); ?></div>
+    </div>
+<?php } ?>
+
 <div class="row g-4">
     <!-- Left: Food Items to Prepare (Large Legibility) -->
     <div class="col-12 col-lg-8">
         <div class="pos-card mb-4">
-            <div class="pos-card-header bg-light">
+            <div class="pos-card-header">
                 <span class="pos-card-title fs-6"><i class="bi bi-fire text-danger me-2"></i>Items to Prepare</span>
-                <span class="badge bg-white text-muted border">Order #<?php echo $id; ?></span>
+                <span class="badge bg-light text-muted border">Order #<?php echo $id; ?></span>
             </div>
             <div class="pos-card-body p-3">
                 <?php if (mysqli_num_rows($items) === 0) { ?>
@@ -214,35 +246,56 @@ $status_class = match($order["status"]) {
                     </span>
                 </div>
 
-                <!-- Contextual Action Button to update-status.php -->
+                <!-- Contextual Action Buttons -->
                 <?php if ($order["status"] === "pending") { ?>
-                    <a href="update-status.php?id=<?php echo $order["id"]; ?>" class="btn btn-warning w-100 py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm text-dark">
-                        <i class="bi bi-fire"></i>
-                        <span>Advance to Preparing</span>
-                    </a>
+                    <form method="POST" class="mb-2">
+                        <input type="hidden" name="action_status" value="preparing">
+                        <button type="submit" class="btn btn-warning w-100 py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm text-dark">
+                            <i class="bi bi-fire"></i>
+                            <span>Advance to Preparing</span>
+                        </button>
+                    </form>
                 <?php } elseif ($order["status"] === "preparing") { ?>
-                    <a href="update-status.php?id=<?php echo $order["id"]; ?>" class="btn btn-primary w-100 py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm">
-                        <i class="bi bi-check-circle"></i>
-                        <span>Advance to Ready</span>
-                    </a>
+                    <form method="POST" class="mb-2">
+                        <input type="hidden" name="action_status" value="ready">
+                        <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm">
+                            <i class="bi bi-check-circle"></i>
+                            <span>Advance to Ready</span>
+                        </button>
+                    </form>
                 <?php } elseif ($order["status"] === "ready") { ?>
-                    <a href="update-status.php?id=<?php echo $order["id"]; ?>" class="btn btn-success w-100 py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm">
-                        <i class="bi bi-check2-all"></i>
-                        <span>Complete Order &amp; Deduct Stock</span>
-                    </a>
+                    <form method="POST" class="mb-2">
+                        <input type="hidden" name="action_status" value="completed">
+                        <button type="submit" class="btn btn-success w-100 py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm">
+                            <i class="bi bi-check2-all"></i>
+                            <span>Complete Order &amp; Deduct Stock</span>
+                        </button>
+                    </form>
                 <?php } elseif ($order["status"] === "completed") { ?>
                     <div class="alert alert-success d-flex align-items-center gap-2 py-2 px-3 mb-0 border-success-subtle">
                         <i class="bi bi-check2-circle text-success fs-5"></i>
                         <span class="small text-secondary">This order has completed the kitchen workflow.</span>
                     </div>
-                <?php } else { ?>
-                    <a href="update-status.php?id=<?php echo $order["id"]; ?>" class="btn btn-outline-secondary w-100 py-2">
-                        Update Status
-                    </a>
+                <?php } elseif ($order["status"] === "cancelled") { ?>
+                    <div class="alert alert-danger d-flex align-items-center gap-2 py-2 px-3 mb-0 border-danger-subtle">
+                        <i class="bi bi-x-circle text-danger fs-5"></i>
+                        <span class="small text-secondary">This order was cancelled.</span>
+                    </div>
+                <?php } ?>
+
+                <?php if (in_array($order["status"], ['pending', 'preparing', 'ready'], true)) { ?>
+                    <form method="POST" onsubmit="return confirm('Are you sure you want to cancel Order #<?php echo $id; ?>? This will release the table and remove the order from the kitchen queue.');">
+                        <input type="hidden" name="action_status" value="cancelled">
+                        <button type="submit" class="btn btn-outline-danger btn-sm w-100 py-1 d-flex align-items-center justify-content-center gap-1">
+                            <i class="bi bi-x-circle"></i>
+                            <span>Cancel Order</span>
+                        </button>
+                    </form>
                 <?php } ?>
             </div>
         </div>
     </div>
+</div>
 </div>
 
 <?php
