@@ -28,6 +28,10 @@ $error = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
+    if (!verify_csrf_token()) {
+        csrf_failure_response();
+    }
+
     $order_id = isset($_POST["order_id"]) ? (int) $_POST["order_id"] : 0;
     $discount_raw = trim($_POST["discount"] ?? "0");
     $tax_raw = trim($_POST["tax"] ?? "0");
@@ -187,6 +191,7 @@ $posted_tax = $_POST["tax"] ?? "0";
                 </div>
                 <div class="pos-card-body p-4">
                     <form method="POST" id="billForm">
+                        <?php echo csrf_field(); ?>
                         <!-- Order Selection -->
                         <div class="mb-4">
                             <label for="orderSelect" class="form-label pos-form-label">

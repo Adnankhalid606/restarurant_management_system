@@ -8,6 +8,10 @@ requireRole(["admin"]);
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
+    if (!verify_csrf_token()) {
+        csrf_failure_response();
+    }
+
     $name = trim($_POST["name"] ?? "");
     $phone = trim($_POST["phone"] ?? "");
     $address = trim($_POST["address"] ?? "");
@@ -55,6 +59,7 @@ require_once "../includes/header.php";
 </div>
 
 <form method="POST">
+    <?php echo csrf_field(); ?>
     <div class="row g-4 justify-content-center">
         <!-- Main Form Column -->
         <div class="col-12 col-lg-8">

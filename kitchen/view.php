@@ -91,6 +91,10 @@ $flash_error = $_SESSION['flash_error'] ?? '';
 unset($_SESSION['flash_success'], $_SESSION['flash_error']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_status'])) {
+    if (!verify_csrf_token()) {
+        csrf_failure_response();
+    }
+
     $target_status = trim($_POST['action_status']);
     $res = transitionKitchenOrderStatus($conn, $id, $target_status);
     if ($res['success']) {
@@ -249,6 +253,7 @@ $status_class = match($order["status"]) {
                 <!-- Contextual Action Buttons -->
                 <?php if ($order["status"] === "pending") { ?>
                     <form method="POST" class="mb-2">
+                        <?php echo csrf_field(); ?>
                         <input type="hidden" name="action_status" value="preparing">
                         <button type="submit" class="btn btn-warning w-100 py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm text-dark">
                             <i class="bi bi-fire"></i>
@@ -257,6 +262,7 @@ $status_class = match($order["status"]) {
                     </form>
                 <?php } elseif ($order["status"] === "preparing") { ?>
                     <form method="POST" class="mb-2">
+                        <?php echo csrf_field(); ?>
                         <input type="hidden" name="action_status" value="ready">
                         <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm">
                             <i class="bi bi-check-circle"></i>
@@ -265,6 +271,7 @@ $status_class = match($order["status"]) {
                     </form>
                 <?php } elseif ($order["status"] === "ready") { ?>
                     <form method="POST" class="mb-2">
+                        <?php echo csrf_field(); ?>
                         <input type="hidden" name="action_status" value="completed">
                         <button type="submit" class="btn btn-success w-100 py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm">
                             <i class="bi bi-check2-all"></i>
@@ -285,6 +292,7 @@ $status_class = match($order["status"]) {
 
                 <?php if (in_array($order["status"], ['pending', 'preparing', 'ready'], true)) { ?>
                     <form method="POST" onsubmit="return confirm('Are you sure you want to cancel Order #<?php echo $id; ?>? This will release the table and remove the order from the kitchen queue.');">
+                        <?php echo csrf_field(); ?>
                         <input type="hidden" name="action_status" value="cancelled">
                         <button type="submit" class="btn btn-outline-danger btn-sm w-100 py-1 d-flex align-items-center justify-content-center gap-1">
                             <i class="bi bi-x-circle"></i>

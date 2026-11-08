@@ -25,6 +25,10 @@ $error_message = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
+    if (!verify_csrf_token()) {
+        csrf_failure_response();
+    }
+
     $menu_item_id = isset($_POST["menu_item_id"]) ? (int) $_POST["menu_item_id"] : 0;
     $raw_material_ids = $_POST["raw_material_id"] ?? [];
     $quantities = $_POST["quantity"] ?? [];
@@ -135,6 +139,7 @@ require_once "../includes/header.php";
 <?php } ?>
 
 <form method="POST" id="recipeForm">
+    <?php echo csrf_field(); ?>
     <div class="row g-4">
         <!-- Main Form Column -->
         <div class="col-12 col-lg-8">

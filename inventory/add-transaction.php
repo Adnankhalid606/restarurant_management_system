@@ -16,6 +16,10 @@ $error = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
+    if (!verify_csrf_token()) {
+        csrf_failure_response();
+    }
+
     $raw_material_id = isset($_POST["raw_material_id"]) ? (int) $_POST["raw_material_id"] : 0;
     $type = trim($_POST["type"] ?? "");
     $quantity_raw = trim($_POST["quantity"] ?? "");
@@ -141,6 +145,7 @@ $posted_qty = $_POST["quantity"] ?? "";
             </div>
             <div class="pos-card-body p-4">
                 <form method="POST">
+                    <?php echo csrf_field(); ?>
                     <!-- Raw Material Selection -->
                     <div class="mb-3">
                         <label for="materialSelect" class="form-label pos-form-label">

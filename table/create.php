@@ -9,6 +9,10 @@ $error = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
+    if (!verify_csrf_token()) {
+        csrf_failure_response();
+    }
+
     $table_number = isset($_POST["table_number"]) ? (int) $_POST["table_number"] : 0;
     $capacity = isset($_POST["capacity"]) ? (int) $_POST["capacity"] : 0;
     $status = trim($_POST["status"] ?? "available");
@@ -101,6 +105,7 @@ $posted_status = $_POST["status"] ?? "available";
             </div>
             <div class="pos-card-body p-4">
                 <form method="POST">
+                    <?php echo csrf_field(); ?>
                     <!-- Table Number -->
                     <div class="mb-3">
                         <label for="tableNumber" class="form-label pos-form-label">

@@ -21,6 +21,10 @@ if (isset($_SESSION["user_id"])) {
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
+    if (!verify_csrf_token()) {
+        csrf_failure_response();
+    }
+
     $login_input = trim($_POST["login_input"] ?? "");
     $password = $_POST["password"] ?? "";
 
@@ -53,7 +57,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         } else {
 
+            $old_csrf = $_SESSION['_csrf_token'] ?? null;
             session_regenerate_id(true);
+            if ($old_csrf) {
+                $_SESSION['_csrf_token'] = $old_csrf;
+            }
 
             $_SESSION["user_id"] = $user["id"];
             $_SESSION["user_name"] = $user["name"];
@@ -91,6 +99,7 @@ require_once "../includes/header.php";
         <?php } ?>
 
         <form method="POST" action="">
+            <?php echo csrf_field(); ?>
             <div class="mb-3">
                 <label for="login_input" class="form-label pos-form-label">Username or Email</label>
                 <div class="input-group">

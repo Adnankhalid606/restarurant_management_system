@@ -56,6 +56,10 @@ if ($purchase["payment_status"] === "paid") {
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
+    if (!verify_csrf_token()) {
+        csrf_failure_response();
+    }
+
     mysqli_begin_transaction($conn);
 
     try {
@@ -199,6 +203,7 @@ require_once "../includes/header.php";
                 </p>
 
                 <form method="POST">
+                    <?php echo csrf_field(); ?>
                     <div class="d-flex flex-column gap-2">
                         <button type="submit" class="btn btn-success py-2 fw-semibold d-inline-flex align-items-center justify-content-center gap-2 shadow-sm">
                             <i class="bi bi-check2-circle fs-5"></i>

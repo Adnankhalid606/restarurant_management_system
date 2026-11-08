@@ -23,6 +23,10 @@ $error = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
+    if (!verify_csrf_token()) {
+        csrf_failure_response();
+    }
+
     $supplier_id = (int) ($_POST["supplier_id"] ?? 0);
     $payment_status = trim($_POST["payment_status"] ?? "unpaid");
     $purchase_date = trim($_POST["purchase_date"] ?? date("Y-m-d"));
@@ -283,6 +287,7 @@ require_once "../includes/header.php";
 <?php } ?>
 
 <form method="POST" id="purchaseForm">
+    <?php echo csrf_field(); ?>
     <div class="row g-4">
         <!-- Main Form Column -->
         <div class="col-12 col-lg-8">

@@ -34,6 +34,10 @@ $error = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
+    if (!verify_csrf_token()) {
+        csrf_failure_response();
+    }
+
     $name = trim($_POST["name"] ?? "");
     $category = trim($_POST["category"] ?? "");
     $price = $_POST["price"] ?? "";
@@ -167,6 +171,7 @@ $has_existing_image = $existing_image_file && file_exists($existing_image_file);
             </div>
             <div class="pos-card-body p-4">
                 <form method="POST" enctype="multipart/form-data">
+                    <?php echo csrf_field(); ?>
                     <!-- Item Name -->
                     <div class="mb-3">
                         <label for="itemName" class="form-label pos-form-label">

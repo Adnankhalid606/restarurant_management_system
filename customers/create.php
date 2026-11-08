@@ -9,6 +9,10 @@ $error = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
+    if (!verify_csrf_token()) {
+        csrf_failure_response();
+    }
+
     $name = preg_replace('/\s+/', ' ', trim($_POST["name"] ?? ""));
     $phone = trim($_POST["phone"] ?? "");
     $address = preg_replace('/\s+/', ' ', trim($_POST["address"] ?? ""));
@@ -86,6 +90,7 @@ $posted_address = $_POST["address"] ?? "";
             </div>
             <div class="pos-card-body p-4">
                 <form method="POST">
+                    <?php echo csrf_field(); ?>
                     <!-- Customer Name -->
                     <div class="mb-3">
                         <label for="customerName" class="form-label pos-form-label">

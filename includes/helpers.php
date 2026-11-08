@@ -134,3 +134,136 @@ if (!function_exists('get_login_url')) {
     }
 }
 
+if (!function_exists('csrf_token')) {
+    /**
+     * Generate or return existing cryptographically secure CSRF token.
+     *
+     * @return string 64-character hexadecimal token string
+     */
+    function csrf_token() {
+        start_secure_session();
+        if (empty($_SESSION['_csrf_token']) || !is_string($_SESSION['_csrf_token']) || strlen($_SESSION['_csrf_token']) !== 64) {
+            $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+        }
+        return $_SESSION['_csrf_token'];
+    }
+}
+
+if (!function_exists('csrf_field')) {
+    /**
+     * Generate an HTML hidden input tag containing the CSRF token.
+     *
+     * @return string Escaped HTML input element
+     */
+    function csrf_field() {
+        $token = csrf_token();
+        return '<input type="hidden" name="_csrf_token" value="' . htmlspecialchars($token, ENT_QUOTES, 'UTF-8') . '">';
+    }
+}
+
+if (!function_exists('verify_csrf_token')) {
+    /**
+     * Validate the CSRF token from POST body or X-CSRF-Token request header using hash_equals().
+     * Rejects missing, malformed, or query-string tokens.
+     *
+     * @return bool True if valid token, false otherwise
+     */
+    function verify_csrf_token() {
+        start_secure_session();
+
+        if (empty($_SESSION['_csrf_token']) || !is_string($_SESSION['_csrf_token'])) {
+            return false;
+        }
+
+        $session_token = $_SESSION['_csrf_token'];
+        $submitted_token = '';
+
+        // Check POST parameter
+        if (isset($_POST['_csrf_token']) && is_string($_POST['_csrf_token'])) {
+            $submitted_token = trim($_POST['_csrf_token']);
+        }
+
+        // Check HTTP headers (X-CSRF-Token)
+        if ($submitted_token === '') {
+            $header_token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+            if (is_string($header_token)) {
+                $submitted_token = trim($header_token);
+            }
+        }
+
+        // Check JSON input if content type is JSON
+        if ($submitted_token === '') {
+            $content_type = $_SERVER['CONTENT_TYPE'] ?? '';
+            if (strpos($content_type, 'application/json') !== false) {
+                $raw_input = file_get_contents('php://input');
+                if (!empty($raw_input)) {
+                    $json_data = json_decode($raw_input, true);
+                    if (is_array($json_data) && isset($json_data['_csrf_token']) && is_string($json_data['_csrf_token'])) {
+                        $submitted_token = trim($json_data['_csrf_token']);
+                    }
+                }
+            }
+        }
+
+        if ($submitted_token === '' || strlen($submitted_token) !== 64) {
+            return false;
+        }
+
+        return hash_equals($session_token, $submitted_token);
+    }
+}
+
+if (!function_exists('csrf_failure_response')) {
+    /**
+     * Terminate execution with HTTP 403 upon CSRF validation failure.
+     * Returns JSON for AJAX requests or a user-friendly error screen for standard POST forms.
+     */
+    function csrf_failure_response() {
+        http_response_code(403);
+
+        $is_ajax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+            || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
+            || (isset($_SERVER['CONTENT_TYPE']) && strpos($_SERVER['CONTENT_TYPE'], 'application/json') !== false);
+
+        if ($is_ajax) {
+            header('Content-Type: application/json; charset=UTF-8');
+            echo json_encode([
+                'success' => false,
+                'message' => 'CSRF token validation failed. Please refresh the page and try again.'
+            ]);
+            exit;
+        }
+
+        header('Content-Type: text/html; charset=UTF-8');
+        ?>
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>403 - Request Verification Failed</title>
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f8fafc; color: #1e293b; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 1.5rem; }
+                .card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 0.75rem; max-width: 480px; width: 100%; padding: 2rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); text-align: center; }
+                .icon { width: 56px; height: 56px; line-height: 56px; border-radius: 50%; background: #fee2e2; color: #dc2626; font-size: 1.75rem; font-weight: bold; margin: 0 auto 1.25rem; display: flex; align-items: center; justify-content: center; }
+                h1 { font-size: 1.25rem; margin-bottom: 0.75rem; color: #0f172a; }
+                p { font-size: 0.925rem; color: #64748b; line-height: 1.5; margin-bottom: 1.5rem; }
+                .btn { display: inline-block; background: #0284c7; color: #ffffff; text-decoration: none; padding: 0.625rem 1.25rem; border-radius: 0.5rem; font-weight: 500; font-size: 0.875rem; }
+                .btn:hover { background: #0369a1; }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <div class="icon">!</div>
+                <h1>Security Verification Failed</h1>
+                <p>Your form submission could not be verified because the security token was missing, expired, or invalid. Please return to the previous page, refresh, and submit again.</p>
+                <a href="javascript:history.back()" class="btn">Return to Previous Page</a>
+            </div>
+        </body>
+        </html>
+        <?php
+        exit;
+    }
+}
+
+

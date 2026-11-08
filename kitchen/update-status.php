@@ -35,6 +35,10 @@ if (!$order) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!verify_csrf_token()) {
+        csrf_failure_response();
+    }
+
     $status = trim($_POST['status'] ?? '');
     $res = transitionKitchenOrderStatus($conn, $id, $status);
 
@@ -127,6 +131,7 @@ $status_class = match($order["status"]) {
                     </a>
                 <?php } else { ?>
                     <form method="POST">
+                        <?php echo csrf_field(); ?>
                         <div class="mb-3">
                             <label for="statusSelect" class="form-label pos-form-label">Next Workflow Action <span class="text-danger">*</span></label>
                             <select name="status" id="statusSelect" class="form-select pos-form-control py-2 fs-6" required>

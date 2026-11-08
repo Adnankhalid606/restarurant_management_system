@@ -21,6 +21,10 @@ $result = mysqli_query($conn, $sql);
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
+    if (!verify_csrf_token()) {
+        csrf_failure_response();
+    }
+
     $user_id = (int) ($_POST["user_id"] ?? 0);
     $amount = (float) ($_POST["amount"] ?? 0);
     $salary_type = trim($_POST["salary_type"] ?? "");
@@ -137,6 +141,7 @@ require_once "../includes/header.php";
             </div>
             <div class="pos-card-body p-4">
                 <form method="POST" action="create.php">
+                    <?php echo csrf_field(); ?>
                     <div class="row g-3 mb-3">
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-semibold text-dark">

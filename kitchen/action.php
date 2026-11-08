@@ -33,6 +33,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+if (!verify_csrf_token()) {
+    csrf_failure_response();
+}
+
 // Support both form-urlencoded POST and JSON payloads
 $input_json = json_decode(file_get_contents('php://input'), true);
 $order_id = (int) ($input_json['order_id'] ?? $_POST['order_id'] ?? 0);

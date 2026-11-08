@@ -14,6 +14,7 @@ $no_shell = $no_shell ?? false;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
     <title><?php echo htmlspecialchars($page_title, ENT_QUOTES, 'UTF-8'); ?> - RestoBar POS</title>
 
     <!-- Local Bootstrap 5.3 CSS -->

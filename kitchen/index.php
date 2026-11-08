@@ -355,15 +355,20 @@ document.addEventListener('DOMContentLoaded', function() {
             triggerBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Updating...`;
         }
 
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
         fetch('action.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                'Accept': 'application/json',
+                'X-CSRF-Token': csrfToken
             },
             body: JSON.stringify({
                 order_id: orderId,
-                status: targetStatus
+                status: targetStatus,
+                _csrf_token: csrfToken
             })
         })
         .then(response => {

@@ -10,6 +10,10 @@ $success = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
+    if (!verify_csrf_token()) {
+        csrf_failure_response();
+    }
+
     $name = preg_replace('/\s+/', ' ', trim($_POST["name"] ?? ""));
     $username = strtolower(trim($_POST["username"] ?? ""));
     $email = strtolower(trim($_POST["email"] ?? ""));
@@ -124,6 +128,7 @@ require_once "../includes/header.php";
                 <?php } ?>
 
                 <form method="POST" action="create.php">
+                    <?php echo csrf_field(); ?>
                     <div class="row g-3 mb-3">
                         <div class="col-12 col-md-6">
                             <label class="form-label fw-semibold text-dark">

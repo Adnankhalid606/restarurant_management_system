@@ -9,6 +9,10 @@ $error = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
+    if (!verify_csrf_token()) {
+        csrf_failure_response();
+    }
+
     $expense_head = preg_replace('/\s+/', ' ', trim($_POST["expense_head"] ?? ""));
     $description = preg_replace('/\s+/', ' ', trim($_POST["description"] ?? ""));
     $amount_raw = trim($_POST["amount"] ?? "");
@@ -89,6 +93,7 @@ $posted_date = $_POST["expense_date"] ?? date("Y-m-d");
 <?php } ?>
 
 <form method="POST">
+    <?php echo csrf_field(); ?>
     <div class="row g-4 justify-content-center">
         <!-- Main Form Column -->
         <div class="col-12 col-lg-8">

@@ -54,6 +54,10 @@ $error = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
+    if (!verify_csrf_token()) {
+        csrf_failure_response();
+    }
+
     $customer_id = (int) ($_POST["customer_id"] ?? 0);
     $table_id = (int) ($_POST["table_id"] ?? 0);
     $reservation_date = trim($_POST["reservation_date"] ?? "");
@@ -248,6 +252,7 @@ $selected_status = $_POST["status"] ?? $reservation["status"];
             </div>
             <div class="pos-card-body p-4">
                 <form method="POST">
+                    <?php echo csrf_field(); ?>
                     <!-- Section 1: Customer & Table Assignment -->
                     <h6 class="text-uppercase text-muted fw-bold small mb-3 border-bottom pb-2">
                         1. Guest &amp; Seating Assignment

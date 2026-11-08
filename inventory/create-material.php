@@ -7,6 +7,10 @@ requireRole(["admin"]);
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
+    if (!verify_csrf_token()) {
+        csrf_failure_response();
+    }
+
     $name = trim($_POST["name"] ?? "");
     $unit = trim($_POST["unit"] ?? "");
     $current_stock = (float) ($_POST["current_stock"] ?? 0);
@@ -69,6 +73,7 @@ $posted_minimum = $_POST["minimum_stock"] ?? "0";
             </div>
             <div class="pos-card-body p-4">
                 <form method="POST">
+                    <?php echo csrf_field(); ?>
                     <!-- Material Name -->
                     <div class="mb-3">
                         <label for="materialName" class="form-label pos-form-label">
