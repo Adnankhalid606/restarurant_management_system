@@ -240,9 +240,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 $unit_price = (float) $menu_item["price"];
 
-                $subtotal = $unit_price * $quantity;
+                $subtotal = round($unit_price * $quantity, 2);
 
-                $total_amount += $subtotal;
+                $total_amount = round($total_amount + $subtotal, 2);
 
                 $verified_items[] = [
                     "menu_item_id" => $menu_item_id,

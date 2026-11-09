@@ -91,9 +91,36 @@ $salary_row = mysqli_fetch_assoc($salary_result);
 
 $total_salaries = $salary_row["total_salaries"];
 
-$net_profit = $total_sales - $total_purchases - $total_expenses - $total_salaries;
+$net_profit = round(
+    $total_sales - $total_purchases - $total_expenses - $total_salaries,
+    2
+);
 
-$is_profit = ($net_profit >= 0);
+if ($net_profit > 0) {
+    $pnl_status = 'profit';
+    $pnl_label = 'Profit';
+    $pnl_text_class = 'text-success';
+    $pnl_badge_class = 'badge-status-ready';
+    $pnl_icon = 'bi-trophy-fill text-success';
+    $pnl_badge_icon = 'bi-check-circle-fill me-1';
+    $pnl_badge_text = 'Profitable Operating Period';
+} elseif ($net_profit < 0) {
+    $pnl_status = 'loss';
+    $pnl_label = 'Loss';
+    $pnl_text_class = 'text-danger';
+    $pnl_badge_class = 'badge-status-cancelled';
+    $pnl_icon = 'bi-exclamation-triangle-fill text-danger';
+    $pnl_badge_icon = 'bi-exclamation-triangle-fill me-1';
+    $pnl_badge_text = 'Operating Deficit';
+} else {
+    $pnl_status = 'breakeven';
+    $pnl_label = 'Break-even';
+    $pnl_text_class = 'text-secondary';
+    $pnl_badge_class = 'badge-status-general';
+    $pnl_icon = 'bi-dash-circle-fill text-secondary';
+    $pnl_badge_icon = 'bi-dash-circle-fill me-1';
+    $pnl_badge_text = 'Break-Even Operating Period';
+}
 
 $page_title = "Profit & Loss Statement";
 $active_menu = "reports";
@@ -217,13 +244,13 @@ require_once "../includes/header.php";
     <div class="col-6 col-md-3">
         <div class="pos-card p-3 d-flex align-items-center justify-content-between">
             <div>
-                <span class="text-muted small d-block">Net <?php echo $is_profit ? 'Profit' : 'Loss'; ?></span>
-                <span class="fs-4 fw-bold font-monospace <?php echo $is_profit ? 'text-success' : 'text-danger'; ?>">
+                <span class="text-muted small d-block">Net <?php echo $pnl_label; ?></span>
+                <span class="fs-4 fw-bold font-monospace <?php echo $pnl_text_class; ?>">
                     Rs. <?php echo number_format($net_profit, 2); ?>
                 </span>
             </div>
-            <div class="badge-subtle <?php echo $is_profit ? 'badge-status-ready' : 'badge-status-cancelled'; ?> p-2 rounded">
-                <i class="bi <?php echo $is_profit ? 'bi-trophy-fill text-success' : 'bi-exclamation-triangle-fill text-danger'; ?> fs-4"></i>
+            <div class="badge-subtle <?php echo $pnl_badge_class; ?> p-2 rounded">
+                <i class="bi <?php echo $pnl_icon; ?> fs-4"></i>
             </div>
         </div>
     </div>
@@ -326,26 +353,20 @@ require_once "../includes/header.php";
                 <div class="pnl-row-total">
                     <div>
                         <h5 class="fw-bold text-dark mb-1">
-                            Net Operating <?php echo $is_profit ? 'Profit' : 'Loss'; ?>
+                            Net Operating <?php echo $pnl_label; ?>
                         </h5>
                         <div class="text-muted small">
                             Calculation formula: Revenue (Sales) &minus; Purchases &minus; Expenses &minus; Salaries
                         </div>
                     </div>
                     <div class="text-end">
-                        <div class="fs-3 fw-bold font-monospace <?php echo $is_profit ? 'text-success' : 'text-danger'; ?>">
+                        <div class="fs-3 fw-bold font-monospace <?php echo $pnl_text_class; ?>">
                             Rs. <?php echo number_format($net_profit, 2); ?>
                         </div>
                         <div>
-                            <?php if ($is_profit) { ?>
-                                <span class="badge badge-subtle badge-status-ready">
-                                    <i class="bi bi-check-circle-fill me-1"></i>Profitable Operating Period
-                                </span>
-                            <?php } else { ?>
-                                <span class="badge badge-subtle badge-status-cancelled">
-                                    <i class="bi bi-exclamation-triangle-fill me-1"></i>Operating Deficit
-                                </span>
-                            <?php } ?>
+                            <span class="badge badge-subtle <?php echo $pnl_badge_class; ?>">
+                                <i class="bi <?php echo $pnl_badge_icon; ?>"></i><?php echo $pnl_badge_text; ?>
+                            </span>
                         </div>
                     </div>
                 </div>
