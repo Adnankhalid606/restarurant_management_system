@@ -33,52 +33,74 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 
     $order_id = isset($_POST["order_id"]) ? (int) $_POST["order_id"] : 0;
-    $discount_raw = trim($_POST["discount"] ?? "0");
-    $tax_raw = trim($_POST["tax"] ?? "0");
+    $discount_raw = $_POST["discount"] ?? "0";
+    $tax_raw = $_POST["tax"] ?? "0";
 
     if ($order_id <= 0) {
         $error = "Please select a valid order.";
-    } elseif (!is_numeric($discount_raw) || !is_numeric($tax_raw)) {
-        $error = "Discount and Tax must be valid numbers.";
+    } elseif ($discount_raw === null || is_array($discount_raw) || !is_scalar($discount_raw)) {
+        $error = "Discount must be a valid numeric amount.";
+    } elseif ($tax_raw === null || is_array($tax_raw) || !is_scalar($tax_raw)) {
+        $error = "Tax must be a valid numeric amount.";
     } else {
-        $discount = (float) $discount_raw;
-        $tax = (float) $tax_raw;
+        $discount_str = trim((string) $discount_raw);
+        $tax_str = trim((string) $tax_raw);
 
-        // 1. Guard against duplicate bill generation for the same order
-        $check_bill_sql = "SELECT id FROM bills WHERE order_id = ? LIMIT 1";
-        $check_bill_stmt = mysqli_prepare($conn, $check_bill_sql);
-        mysqli_stmt_bind_param($check_bill_stmt, "i", $order_id);
-        mysqli_stmt_execute($check_bill_stmt);
-        $existing_bill_res = mysqli_stmt_get_result($check_bill_stmt);
-
-        if ($existing_bill = mysqli_fetch_assoc($existing_bill_res)) {
-            $error = "A bill has already been generated for Order #$order_id (Bill #{$existing_bill['id']}).";
+        if (!preg_match('/^\d+(\.\d{1,2})?$/', $discount_str)) {
+            $error = "Discount must be a valid non-negative number with at most 2 decimal places.";
+        } elseif (!preg_match('/^\d+(\.\d{1,2})?$/', $tax_str)) {
+            $error = "Tax must be a valid non-negative number with at most 2 decimal places.";
         } else {
-            // 2. Fetch order and verify eligibility
-            $sql = "SELECT total_amount, status
-                    FROM orders
-                    WHERE id = ?";
+            $discount = round((float) $discount_str, 2);
+            $tax = round((float) $tax_str, 2);
 
-            $stmt = mysqli_prepare($conn, $sql);
-            mysqli_stmt_bind_param($stmt, "i", $order_id);
-            mysqli_stmt_execute($stmt);
-
-            $result = mysqli_stmt_get_result($stmt);
-            $order = mysqli_fetch_assoc($result);
-
-            if (!$order) {
-                $error = "The selected order could not be found.";
-            } elseif (!in_array($order["status"], ["ready", "completed"], true)) {
-                $error = "Only orders with status 'Ready' or 'Completed' can be billed.";
+            if ($discount > 99999999.99) {
+                $error = "Discount exceeds the maximum permitted limit of 99,999,999.99.";
+            } elseif ($tax > 99999999.99) {
+                $error = "Tax exceeds the maximum permitted limit of 99,999,999.99.";
             } else {
-                $subtotal = (float) $order["total_amount"];
+                // 1. Guard against duplicate bill generation for the same order
+                $check_bill_sql = "SELECT id FROM bills WHERE order_id = ? LIMIT 1";
+                $check_bill_stmt = mysqli_prepare($conn, $check_bill_sql);
+                mysqli_stmt_bind_param($check_bill_stmt, "i", $order_id);
+                mysqli_stmt_execute($check_bill_stmt);
+                $existing_bill_res = mysqli_stmt_get_result($check_bill_stmt);
 
-                if ($discount < 0) {
-                    $error = "Discount cannot be negative.";
-                } elseif ($discount > $subtotal) {
-                    $error = "Discount cannot be greater than subtotal.";
-                } elseif ($tax < 0) {
-                    $error = "Tax cannot be negative.";
+                if ($existing_bill = mysqli_fetch_assoc($existing_bill_res)) {
+                    $error = "A bill has already been generated for Order #$order_id (Bill #{$existing_bill['id']}).";
+                } else {
+                    // 2. Fetch order and verify eligibility
+                    $sql = "SELECT total_amount, status
+                            FROM orders
+                            WHERE id = ?";
+
+                    $stmt = mysqli_prepare($conn, $sql);
+                    mysqli_stmt_bind_param($stmt, "i", $order_id);
+                    mysqli_stmt_execute($stmt);
+
+                    $result = mysqli_stmt_get_result($stmt);
+                    $order = mysqli_fetch_assoc($result);
+
+                    if (!$order) {
+                        $error = "The selected order could not be found.";
+                    } elseif (!in_array($order["status"], ["ready", "completed"], true)) {
+                        $error = "Only orders with status 'Ready' or 'Completed' can be billed.";
+                    } else {
+                        $subtotal = round((float) $order["total_amount"], 2);
+
+                        if ($discount < 0) {
+                            $error = "Discount cannot be negative.";
+                        } elseif ($discount > $subtotal) {
+                            $error = "Discount cannot be greater than subtotal.";
+                        } elseif ($tax < 0) {
+                            $error = "Tax cannot be negative.";
+                        } else {
+                            $computed_total = round($subtotal - $discount + $tax, 2);
+                            if ($computed_total > 99999999.99) {
+                                $error = "Total bill amount exceeds the maximum permitted limit of 99,999,999.99.";
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -86,7 +108,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     if ($error === "") {
 
-        $total_amount = $subtotal - $discount + $tax;
+        $total_amount = round($subtotal - $discount + $tax, 2);
 
         /*
          * Create bill

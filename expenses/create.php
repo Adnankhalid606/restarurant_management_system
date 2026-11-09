@@ -15,17 +15,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     $expense_head = preg_replace('/\s+/', ' ', trim($_POST["expense_head"] ?? ""));
     $description = preg_replace('/\s+/', ' ', trim($_POST["description"] ?? ""));
-    $amount_raw = trim($_POST["amount"] ?? "");
+    $amount_raw = $_POST["amount"] ?? null;
     $expense_date = trim($_POST["expense_date"] ?? "");
 
     if ($expense_head === "") {
         $error = "Expense head / category is required.";
-    } elseif (!is_numeric($amount_raw) || (float) $amount_raw <= 0) {
-        $error = "Expense amount must be a valid numeric amount greater than zero.";
+    } elseif ($amount_raw === null || is_array($amount_raw) || !is_scalar($amount_raw)) {
+        $error = "Expense amount is required and must be a valid numeric amount.";
+    } elseif (!preg_match('/^\d+(\.\d{1,2})?$/', trim((string) $amount_raw))) {
+        $error = "Expense amount must be a valid positive number with at most 2 decimal places.";
+    } elseif ((float) $amount_raw <= 0) {
+        $error = "Expense amount must be strictly greater than zero.";
+    } elseif ((float) $amount_raw > 99999999.99) {
+        $error = "Expense amount exceeds the maximum permitted limit of 99,999,999.99.";
     } elseif ($expense_date === "") {
         $error = "Expense transaction date is required.";
     } else {
-        $amount = (float) $amount_raw;
+        $amount = round((float) $amount_raw, 2);
 
         try {
             $sql = "INSERT INTO expenses

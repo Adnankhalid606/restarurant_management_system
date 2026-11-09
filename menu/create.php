@@ -15,14 +15,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     $name = trim($_POST["name"] ?? "");
     $category = trim($_POST["category"] ?? "");
-    $price = $_POST["price"] ?? "";
+    $price_raw = $_POST["price"] ?? null;
     $is_available = $_POST["is_available"] ?? "1";
     $image_filename = null;
 
     if ($name === "") {
         $error = "Please enter an item name.";
-    } elseif ($price === "" || !is_numeric($price) || (float)$price < 0) {
+    } elseif ($price_raw === null || is_array($price_raw) || !is_scalar($price_raw)) {
         $error = "Please enter a valid price.";
+    } elseif (!preg_match('/^\d+(\.\d{1,2})?$/', trim((string) $price_raw))) {
+        $error = "Price must be a valid non-negative number with at most 2 decimal places.";
+    } elseif ((float) $price_raw < 0) {
+        $error = "Price cannot be negative.";
+    } elseif ((float) $price_raw > 99999999.99) {
+        $error = "Price exceeds the maximum permitted limit of 99,999,999.99.";
+    } else {
+        $price = round((float) $price_raw, 2);
     }
 
     if ($error === "" && isset($_FILES["image"]) && $_FILES["image"]["error"] !== UPLOAD_ERR_NO_FILE) {
