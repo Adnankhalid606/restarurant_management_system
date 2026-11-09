@@ -57,84 +57,125 @@ $sql = "
 
 $employees_result = mysqli_query($conn, $sql);
 
+$error = "";
+
+$posted_user_id = (int) $salary["user_id"];
+$posted_amount = (string) $salary["amount"];
+$posted_salary_type = (string) $salary["salary_type"];
+$posted_salary_date = (string) $salary["salary_date"];
+$posted_payment_status = (string) $salary["payment_status"];
+$posted_description = (string) ($salary["description"] ?? "");
+
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     if (!verify_csrf_token()) {
         csrf_failure_response();
     }
 
-    $user_id = (int) ($_POST["user_id"] ?? 0);
-    $amount = (float) ($_POST["amount"] ?? 0);
-    $salary_type = trim($_POST["salary_type"] ?? "");
-    $salary_date = trim($_POST["salary_date"] ?? date("Y-m-d"));
-    $payment_status = trim($_POST["payment_status"] ?? "unpaid");
-    $description = trim($_POST["description"] ?? "");
+    $posted_user_id = (int) ($_POST["user_id"] ?? 0);
+    $amount_raw = $_POST["amount"] ?? null;
+    $posted_salary_type = trim((string) ($_POST["salary_type"] ?? ""));
+    $posted_salary_date = trim((string) ($_POST["salary_date"] ?? date("Y-m-d")));
+    $posted_payment_status = trim((string) ($_POST["payment_status"] ?? "unpaid"));
+    $posted_description = trim((string) ($_POST["description"] ?? ""));
 
-    // Validate salary type
-    if (!in_array($salary_type, ["daily", "monthly"])) {
-        die("Invalid salary type.");
+    // 1. Validate employee
+    if ($posted_user_id <= 0) {
+        $error = "Please select an active employee staff member.";
+    } else {
+        $check_emp_sql = "
+            SELECT id
+            FROM users
+            WHERE id = ?
+            AND role != 'admin'
+            AND is_active = 1
+        ";
+        $stmt = mysqli_prepare($conn, $check_emp_sql);
+        mysqli_stmt_bind_param($stmt, "i", $posted_user_id);
+        mysqli_stmt_execute($stmt);
+        $employee_result = mysqli_stmt_get_result($stmt);
+
+        if (mysqli_num_rows($employee_result) === 0) {
+            $error = "Selected employee is invalid, deactivated, or not eligible for staff payroll.";
+        }
     }
 
-    // Validate payment status
-    if (!in_array($payment_status, ["unpaid", "paid"])) {
-        die("Invalid payment status.");
+    // 2. Strict amount validation
+    if ($error === "") {
+        if ($amount_raw === null || is_array($amount_raw) || !is_scalar($amount_raw)) {
+            $error = "Salary amount is required and must be a valid numeric amount.";
+        } else {
+            $amount_str = trim((string) $amount_raw);
+            $posted_amount = $amount_str;
+
+            if ($amount_str === "") {
+                $error = "Salary amount is required.";
+            } elseif (!preg_match('/^\d+(\.\d{1,2})?$/', $amount_str)) {
+                $error = "Salary amount must be a valid positive number with at most 2 decimal places.";
+            } else {
+                $amount_val = (float) $amount_str;
+                if (!is_finite($amount_val) || $amount_val <= 0) {
+                    $error = "Salary amount must be strictly greater than zero.";
+                } elseif ($amount_val > 99999999.99) {
+                    $error = "Salary amount exceeds the maximum permitted limit of 99,999,999.99.";
+                }
+            }
+        }
     }
 
-    // Validate amount
-    if ($amount <= 0) {
-        die("Salary amount must be greater than zero.");
+    // 3. Validate salary type
+    if ($error === "" && !in_array($posted_salary_type, ["daily", "monthly"], true)) {
+        $error = "Invalid salary frequency selected. Must be daily or monthly.";
     }
 
-    // Check employee
-    $sql = "
-        SELECT id
-        FROM users
-        WHERE id = ?
-        AND role != 'admin'
-        AND is_active = 1
-    ";
-
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, "i", $user_id);
-    mysqli_stmt_execute($stmt);
-
-    $employee_result = mysqli_stmt_get_result($stmt);
-
-    if (mysqli_num_rows($employee_result) === 0) {
-        die("Invalid employee.");
+    // 4. Validate payment status
+    if ($error === "" && !in_array($posted_payment_status, ["unpaid", "paid"], true)) {
+        $error = "Invalid payment status selected. Must be paid or unpaid.";
     }
 
-    // Update salary
-    $sql = "
-        UPDATE salaries
-        SET
-            user_id = ?,
-            amount = ?,
-            salary_type = ?,
-            salary_date = ?,
-            payment_status = ?,
-            description = ?
-        WHERE id = ?
-    ";
+    // 5. Validate disbursement date
+    if ($error === "" && $posted_salary_date === "") {
+        $error = "Disbursement date is required.";
+    }
 
-    $stmt = mysqli_prepare($conn, $sql);
+    // Update salary if all validations pass
+    if ($error === "") {
+        $amount = round((float) $amount_str, 2);
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        "idssssi",
-        $user_id,
-        $amount,
-        $salary_type,
-        $salary_date,
-        $payment_status,
-        $description,
-        $salary_id
-    );
+        $sql = "
+            UPDATE salaries
+            SET
+                user_id = ?,
+                amount = ?,
+                salary_type = ?,
+                salary_date = ?,
+                payment_status = ?,
+                description = ?
+            WHERE id = ?
+        ";
 
-    mysqli_stmt_execute($stmt);
+        $stmt = mysqli_prepare($conn, $sql);
 
-    header("Location: index.php");
-    exit;
+        mysqli_stmt_bind_param(
+            $stmt,
+            "idssssi",
+            $posted_user_id,
+            $amount,
+            $posted_salary_type,
+            $posted_salary_date,
+            $posted_payment_status,
+            $posted_description,
+            $salary_id
+        );
+
+        if (mysqli_stmt_execute($stmt)) {
+            $_SESSION["flash_success"] = "Salary record #SAL-" . str_pad($salary_id, 3, '0', STR_PAD_LEFT) . " was successfully updated.";
+            header("Location: index.php");
+            exit;
+        } else {
+            $error = "Database error while updating staff salary record.";
+        }
+    }
 }
 
 $page_title = "Edit Salary Record #" . $salary_id;
@@ -170,6 +211,15 @@ require_once "../includes/header.php";
     </div>
 </div>
 
+<?php if ($error !== "") { ?>
+    <div class="alert alert-danger d-flex align-items-center gap-2 mb-4" role="alert">
+        <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+        <div>
+            <strong>Validation Error:</strong> <?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?>
+        </div>
+    </div>
+<?php } ?>
+
 <!-- Salary Entry Form Container -->
 <div class="row justify-content-center">
     <div class="col-12 col-lg-8">
@@ -191,8 +241,10 @@ require_once "../includes/header.php";
                                 Employee Staff Member <span class="text-danger">*</span>
                             </label>
                             <select name="user_id" class="form-select" required>
-                                <?php while ($row = mysqli_fetch_assoc($employees_result)) { ?>
-                                    <option value="<?php echo $row["id"]; ?>" <?php echo $row["id"] == $salary["user_id"] ? "selected" : ""; ?>>
+                                <?php 
+                                mysqli_data_seek($employees_result, 0);
+                                while ($row = mysqli_fetch_assoc($employees_result)) { ?>
+                                    <option value="<?php echo $row["id"]; ?>" <?php echo (int)$row["id"] === $posted_user_id ? "selected" : ""; ?>>
                                         <?php echo htmlspecialchars($row["name"]); ?> - <?php echo ucfirst($row["role"]); ?>
                                     </option>
                                 <?php } ?>
@@ -211,7 +263,7 @@ require_once "../includes/header.php";
                                        step="0.01" 
                                        min="0.01" 
                                        class="form-control font-monospace fw-bold" 
-                                       value="<?php echo htmlspecialchars($salary["amount"]); ?>" 
+                                       value="<?php echo htmlspecialchars($posted_amount, ENT_QUOTES, 'UTF-8'); ?>" 
                                        required>
                             </div>
                             <div class="form-text">Total net wage or disbursement amount.</div>
@@ -224,10 +276,10 @@ require_once "../includes/header.php";
                                 Salary Frequency <span class="text-danger">*</span>
                             </label>
                             <select name="salary_type" class="form-select" required>
-                                <option value="monthly" <?php echo $salary["salary_type"] === "monthly" ? "selected" : ""; ?>>
+                                <option value="monthly" <?php echo $posted_salary_type === "monthly" ? "selected" : ""; ?>>
                                     Monthly
                                 </option>
-                                <option value="daily" <?php echo $salary["salary_type"] === "daily" ? "selected" : ""; ?>>
+                                <option value="daily" <?php echo $posted_salary_type === "daily" ? "selected" : ""; ?>>
                                     Daily
                                 </option>
                             </select>
@@ -239,7 +291,7 @@ require_once "../includes/header.php";
                             </label>
                             <input type="date" 
                                    name="salary_date" 
-                                   value="<?php echo htmlspecialchars($salary["salary_date"]); ?>" 
+                                   value="<?php echo htmlspecialchars($posted_salary_date, ENT_QUOTES, 'UTF-8'); ?>" 
                                    class="form-control" 
                                    required>
                         </div>
@@ -249,10 +301,10 @@ require_once "../includes/header.php";
                                 Payment Status <span class="text-danger">*</span>
                             </label>
                             <select name="payment_status" class="form-select" required>
-                                <option value="paid" <?php echo $salary["payment_status"] === "paid" ? "selected" : ""; ?>>
+                                <option value="paid" <?php echo $posted_payment_status === "paid" ? "selected" : ""; ?>>
                                     Paid (Disbursed)
                                 </option>
-                                <option value="unpaid" <?php echo $salary["payment_status"] === "unpaid" ? "selected" : ""; ?>>
+                                <option value="unpaid" <?php echo $posted_payment_status === "unpaid" ? "selected" : ""; ?>>
                                     Unpaid (Pending)
                                 </option>
                             </select>
@@ -266,7 +318,7 @@ require_once "../includes/header.php";
                         <textarea name="description" 
                                   rows="3" 
                                   class="form-control" 
-                                  placeholder="e.g. Regular monthly wage, overtime compensation, incentive, or advance payout..."><?php echo htmlspecialchars($salary["description"] ?? ""); ?></textarea>
+                                  placeholder="e.g. Regular monthly wage, overtime compensation, incentive, or advance payout..."><?php echo htmlspecialchars($posted_description, ENT_QUOTES, 'UTF-8'); ?></textarea>
                     </div>
 
                     <!-- Accounting Guidance Note -->
