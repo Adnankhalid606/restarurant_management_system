@@ -376,21 +376,6 @@ require_once "./includes/header.php";
     </div>
 <?php } ?>
 
-<!-- Terminal System Information Note -->
-<div class="card bg-white border mt-4">
-    <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2 text-muted small">
-        <div class="d-flex align-items-center gap-2">
-            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">
-                <i class="bi bi-check-circle-fill me-1"></i>System Operational
-            </span>
-            <span>Terminal: <strong>RestoBar Local Server</strong></span>
-        </div>
-        <div>
-            <span>Active Session: <strong><?php echo htmlspecialchars($user_name, ENT_QUOTES, 'UTF-8'); ?></strong> (<?php echo htmlspecialchars($role, ENT_QUOTES, 'UTF-8'); ?>)</span>
-        </div>
-    </div>
-</div>
-
 <?php
 
 require_once "./includes/footer.php";

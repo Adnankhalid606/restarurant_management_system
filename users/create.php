@@ -163,7 +163,7 @@ require_once "../includes/header.php";
                                     value="<?php echo isset($_POST['username']) ? htmlspecialchars($_POST['username']) : ''; ?>"
                                     required>
                             </div>
-                            <div class="form-text">Unique username for login terminal access.</div>
+                            <div class="form-text">Unique username for staff login.</div>
                         </div>
                     </div>
 

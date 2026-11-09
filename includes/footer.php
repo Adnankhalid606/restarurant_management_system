@@ -18,10 +18,6 @@ $no_shell = $no_shell ?? false;
                 <div>
                     <span>&copy; <?php echo date("Y"); ?> <strong>RestoBar POS &amp; Management System</strong></span>
                 </div>
-                <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-light text-secondary border">Local Server</span>
-                    <span class="text-muted d-none d-sm-inline">v1.0.0</span>
-                </div>
             </footer>
         </div>
     </div>
