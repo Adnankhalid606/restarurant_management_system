@@ -185,18 +185,18 @@ $status_class = match($order["status"]) {
                 <?php } else { ?>
                     <?php while ($item = mysqli_fetch_assoc($items)) { ?>
                         <div class="kds-item-row shadow-sm">
-                            <div class="d-flex align-items-center gap-3">
-                                <span class="kds-qty-badge shadow-sm">
+                            <div class="d-flex align-items-center gap-3 min-w-0">
+                                <span class="kds-qty-badge shadow-sm flex-shrink-0">
                                     <?php echo (int) $item["quantity"]; ?> &times;
                                 </span>
-                                <div>
-                                    <div class="kds-food-title">
+                                <div class="min-w-0">
+                                    <div class="kds-food-title text-break">
                                         <?php echo htmlspecialchars($item["menu_item_name"], ENT_QUOTES, 'UTF-8'); ?>
                                     </div>
                                     <small class="text-muted">Quantity: <?php echo (int) $item["quantity"]; ?> portion<?php echo ((int)$item["quantity"] > 1) ? 's' : ''; ?></small>
                                 </div>
                             </div>
-                            <span class="badge bg-light text-secondary border text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.05em;">
+                            <span class="badge bg-light text-secondary border text-uppercase flex-shrink-0 ms-2" style="font-size: 0.75rem; letter-spacing: 0.05em;">
                                 Kitchen Item
                             </span>
                         </div>
@@ -213,39 +213,39 @@ $status_class = match($order["status"]) {
                 <span class="pos-card-title"><i class="bi bi-info-circle me-2 text-primary"></i>Service Details</span>
             </div>
             <div class="pos-card-body">
-                <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                    <span class="text-muted small">Guest / Customer:</span>
-                    <span class="fw-medium text-dark">
+                <div class="d-flex justify-content-between align-items-center py-2 border-bottom gap-2">
+                    <span class="text-muted small flex-shrink-0">Guest / Customer:</span>
+                    <span class="fw-medium text-dark text-end text-break">
                         <?php echo htmlspecialchars($order["customer_name"] ?? "Walk-in", ENT_QUOTES, 'UTF-8'); ?>
                     </span>
                 </div>
-                <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                    <span class="text-muted small">Service Type:</span>
-                    <span class="fw-medium text-dark text-capitalize">
+                <div class="d-flex justify-content-between align-items-center py-2 border-bottom gap-2">
+                    <span class="text-muted small flex-shrink-0">Service Type:</span>
+                    <span class="fw-medium text-dark text-capitalize text-end">
                         <?php echo htmlspecialchars(str_replace('_', ' ', $order["order_type"]), ENT_QUOTES, 'UTF-8'); ?>
                     </span>
                 </div>
-                <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                    <span class="text-muted small">Dining Table:</span>
-                    <span class="fw-medium text-dark">
+                <div class="d-flex justify-content-between align-items-center py-2 border-bottom gap-2">
+                    <span class="text-muted small flex-shrink-0">Dining Table:</span>
+                    <span class="fw-medium text-dark text-end">
                         <?php echo !empty($order["table_number"]) ? "Table " . htmlspecialchars($order["table_number"], ENT_QUOTES, 'UTF-8') : "<span class=\"text-muted\">N/A</span>"; ?>
                     </span>
                 </div>
-                <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                    <span class="text-muted small">Server / Waiter:</span>
-                    <span class="text-dark">
+                <div class="d-flex justify-content-between align-items-center py-2 border-bottom gap-2">
+                    <span class="text-muted small flex-shrink-0">Server / Waiter:</span>
+                    <span class="text-dark text-end text-break">
                         <?php echo htmlspecialchars($order["waiter_name"] ?? "-", ENT_QUOTES, 'UTF-8'); ?>
                     </span>
                 </div>
-                <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                    <span class="text-muted small">Current Status:</span>
-                    <span class="badge-subtle <?php echo $status_class; ?> text-capitalize">
+                <div class="d-flex justify-content-between align-items-center py-2 border-bottom gap-2">
+                    <span class="text-muted small flex-shrink-0">Current Status:</span>
+                    <span class="badge-subtle <?php echo $status_class; ?> text-capitalize flex-shrink-0">
                         <?php echo htmlspecialchars($order["status"], ENT_QUOTES, 'UTF-8'); ?>
                     </span>
                 </div>
-                <div class="d-flex justify-content-between align-items-center py-2 mb-3">
-                    <span class="text-muted small">Created At:</span>
-                    <span class="text-dark small fw-medium">
+                <div class="d-flex justify-content-between align-items-center py-2 mb-3 gap-2">
+                    <span class="text-muted small flex-shrink-0">Created At:</span>
+                    <span class="text-dark small fw-medium text-end">
                         <?php echo formatDateTime($order["created_at"]); ?>
                     </span>
                 </div>
@@ -303,7 +303,6 @@ $status_class = match($order["status"]) {
             </div>
         </div>
     </div>
-</div>
 </div>
 
 <?php
