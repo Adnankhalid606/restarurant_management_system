@@ -34,30 +34,36 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     $order_id = isset($_POST["order_id"]) ? (int) $_POST["order_id"] : 0;
     $discount_raw = $_POST["discount"] ?? "0";
-    $tax_raw = $_POST["tax"] ?? "0";
+    $tax_type_raw = $_POST["tax_type"] ?? "manual";
+    $tax_input_raw = $_POST["tax_input"] ?? "0";
 
     if ($order_id <= 0) {
         $error = "Please select a valid order.";
     } elseif ($discount_raw === null || is_array($discount_raw) || !is_scalar($discount_raw)) {
         $error = "Discount must be a valid numeric amount.";
-    } elseif ($tax_raw === null || is_array($tax_raw) || !is_scalar($tax_raw)) {
-        $error = "Tax must be a valid numeric amount.";
+    } elseif ($tax_type_raw === null || is_array($tax_type_raw) || !is_scalar($tax_type_raw)) {
+        $error = "Tax calculation mode is invalid.";
+    } elseif ($tax_input_raw === null || is_array($tax_input_raw) || !is_scalar($tax_input_raw)) {
+        $error = "Tax input must be a valid numeric value.";
     } else {
+        $tax_type = trim((string) $tax_type_raw);
         $discount_str = trim((string) $discount_raw);
-        $tax_str = trim((string) $tax_raw);
+        $tax_input_str = trim((string) $tax_input_raw);
 
-        if (!preg_match('/^\d+(\.\d{1,2})?$/', $discount_str)) {
+        if (!in_array($tax_type, ["manual", "percentage"], true)) {
+            $error = "Invalid tax calculation mode selected.";
+        } elseif (!preg_match('/^\d+(\.\d{1,2})?$/', $discount_str)) {
             $error = "Discount must be a valid non-negative number with at most 2 decimal places.";
-        } elseif (!preg_match('/^\d+(\.\d{1,2})?$/', $tax_str)) {
-            $error = "Tax must be a valid non-negative number with at most 2 decimal places.";
+        } elseif (!preg_match('/^\d+(\.\d{1,2})?$/', $tax_input_str)) {
+            $error = "Tax input must be a valid non-negative number with at most 2 decimal places.";
         } else {
             $discount = round((float) $discount_str, 2);
-            $tax = round((float) $tax_str, 2);
+            $tax_input = round((float) $tax_input_str, 2);
 
             if ($discount > 99999999.99) {
                 $error = "Discount exceeds the maximum permitted limit of 99,999,999.99.";
-            } elseif ($tax > 99999999.99) {
-                $error = "Tax exceeds the maximum permitted limit of 99,999,999.99.";
+            } elseif ($tax_input > 99999999.99) {
+                $error = "Tax input exceeds the maximum permitted limit of 99,999,999.99.";
             } else {
                 // 1. Guard against duplicate bill generation for the same order
                 $check_bill_sql = "SELECT id FROM bills WHERE order_id = ? LIMIT 1";
@@ -92,12 +98,50 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             $error = "Discount cannot be negative.";
                         } elseif ($discount > $subtotal) {
                             $error = "Discount cannot be greater than subtotal.";
-                        } elseif ($tax < 0) {
-                            $error = "Tax cannot be negative.";
+                        } elseif ($tax_input < 0) {
+                            $error = "Tax input cannot be negative.";
                         } else {
-                            $computed_total = round($subtotal - $discount + $tax, 2);
-                            if ($computed_total > 99999999.99) {
-                                $error = "Total bill amount exceeds the maximum permitted limit of 99,999,999.99.";
+                            $max_monetary_paisa = 9999999999; // 99,999,999.99 in integer paisa
+                            $subtotal_paisa = (int) round($subtotal * 100);
+                            $discount_paisa = (int) round($discount * 100);
+
+                            // Calculate monetary tax amount in integer paisa
+                            if ($tax_type === "manual") {
+                                $tax_paisa = (int) round($tax_input * 100);
+                            } else {
+                                // Decomposed integer arithmetic to mathematically guarantee no 64-bit integer overflow:
+                                // subtotal in paisa: 0 <= subtotal_paisa <= 9,999,999,999
+                                // tax_input in cents: 0 <= tax_input_cents <= 9,999,999,999
+                                // Decompose: subtotal_paisa = S_q * 10,000 + S_r, where 0 <= S_r < 10,000
+                                // Max S_q = 999,999; Max S_r = 9,999.
+                                // Term 1: S_q * tax_input_cents <= 999,999 * 9,999,999,999 = ~9.999 x 10^14.
+                                // Term 2: (S_r * tax_input_cents + 5000) <= (9,999 * 9,999,999,999 + 5000) = ~9.999 x 10^13.
+                                // Both terms are strictly below PHP_INT_MAX (9.223 x 10^18), preventing any 64-bit overflow.
+                                $tax_input_cents = (int) round($tax_input * 100);
+
+                                $S_q = intdiv($subtotal_paisa, 10000);
+                                $S_r = $subtotal_paisa % 10000;
+
+                                $term1 = $S_q * $tax_input_cents;
+                                $inner_remainder = $S_r * $tax_input_cents + 5000; // +5000 for half-up rounding
+                                $term2 = intdiv($inner_remainder, 10000);
+
+                                $tax_paisa = $term1 + $term2;
+                            }
+
+                            // Check calculated tax paisa against maximum permitted monetary limit
+                            if ($tax_paisa > $max_monetary_paisa) {
+                                $error = "Calculated tax exceeds the maximum permitted limit of 99,999,999.99.";
+                            } else {
+                                // Safe integer total calculation: 0 <= (subtotal_paisa - discount_paisa) + tax_paisa <= ~2 x 10^10
+                                $total_paisa = ($subtotal_paisa - $discount_paisa) + $tax_paisa;
+                                if ($total_paisa > $max_monetary_paisa) {
+                                    $error = "Total bill amount exceeds the maximum permitted limit of 99,999,999.99.";
+                                } else {
+                                    // Convert to decimal monetary values at database binding boundary
+                                    $tax = round($tax_paisa / 100, 2);
+                                    $total_amount = round($total_paisa / 100, 2);
+                                }
                             }
                         }
                     }
@@ -108,8 +152,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     if ($error === "") {
 
-        $total_amount = round($subtotal - $discount + $tax, 2);
-
         /*
          * Create bill
          */
@@ -119,19 +161,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         order_id,
                         subtotal,
                         discount,
+                        tax_type,
+                        tax_input,
                         tax,
                         total_amount
                     )
-                    VALUES (?, ?, ?, ?, ?)";
+                    VALUES (?, ?, ?, ?, ?, ?, ?)";
 
             $stmt = mysqli_prepare($conn, $sql);
 
             mysqli_stmt_bind_param(
                 $stmt,
-                "idddd",
+                "iddsddd",
                 $order_id,
                 $subtotal,
                 $discount,
+                $tax_type,
+                $tax_input,
                 $tax,
                 $total_amount
             );
@@ -156,7 +202,8 @@ require_once "../includes/header.php";
 $order_count = mysqli_num_rows($orders);
 $posted_order_id = $_POST["order_id"] ?? "";
 $posted_discount = $_POST["discount"] ?? "0";
-$posted_tax = $_POST["tax"] ?? "0";
+$posted_tax_type = $_POST["tax_type"] ?? "manual";
+$posted_tax_input = $_POST["tax_input"] ?? "0";
 ?>
 
 <!-- Page Header Bar -->
@@ -258,22 +305,41 @@ $posted_tax = $_POST["tax"] ?? "0";
                             </div>
 
                             <div class="col-12 col-md-6">
-                                <label for="taxInput" class="form-label pos-form-label">
-                                    Tax / Surcharge (Rs.) <span class="text-danger">*</span>
+                                <label class="form-label pos-form-label d-flex justify-content-between align-items-center mb-1">
+                                    <span>Tax / Surcharge <span class="text-danger">*</span></span>
+                                    <span class="text-muted small" id="taxTypeLabel">Mode: Fixed Amount</span>
                                 </label>
+                                
+                                <!-- Mode Selector Pills -->
+                                <div class="btn-group w-100 mb-2" role="group" aria-label="Tax Calculation Mode">
+                                    <input type="radio" class="btn-check" name="tax_type" id="taxTypeManual" value="manual" <?php echo ($posted_tax_type !== 'percentage') ? 'checked' : ''; ?>>
+                                    <label class="btn btn-outline-secondary btn-sm py-1" for="taxTypeManual">
+                                        <i class="bi bi-cash me-1"></i>Fixed (Rs.)
+                                    </label>
+
+                                    <input type="radio" class="btn-check" name="tax_type" id="taxTypePercentage" value="percentage" <?php echo ($posted_tax_type === 'percentage') ? 'checked' : ''; ?>>
+                                    <label class="btn btn-outline-secondary btn-sm py-1" for="taxTypePercentage">
+                                        <i class="bi bi-percent me-1"></i>Percentage (%)
+                                    </label>
+                                </div>
+
                                 <div class="input-group">
-                                    <span class="input-group-text bg-light border-end-0">Rs.</span>
+                                    <span class="input-group-text bg-light border-end-0" id="taxAddon">
+                                        <?php echo ($posted_tax_type === 'percentage') ? '%' : 'Rs.'; ?>
+                                    </span>
                                     <input
                                         type="number"
                                         class="form-control pos-form-control border-start-0 py-2"
                                         id="taxInput"
-                                        name="tax"
+                                        name="tax_input"
                                         step="0.01"
                                         min="0"
-                                        value="<?php echo htmlspecialchars($posted_tax, ENT_QUOTES, 'UTF-8'); ?>"
+                                        value="<?php echo htmlspecialchars($posted_tax_input, ENT_QUOTES, 'UTF-8'); ?>"
                                         required>
                                 </div>
-                                <div class="form-text text-muted small">Added to order subtotal.</div>
+                                <div class="form-text text-muted small" id="taxHelpText">
+                                    <?php echo ($posted_tax_type === 'percentage') ? 'Percentage calculated on pre-discount subtotal.' : 'Fixed monetary surcharge added to bill.'; ?>
+                                </div>
                             </div>
                         </div>
 
@@ -291,6 +357,10 @@ $posted_tax = $_POST["tax"] ?? "0";
                                 <span>Tax / Surcharge:</span>
                                 <span id="previewTax">+ Rs. 0.00</span>
                             </div>
+                            <div id="previewWarning" class="alert alert-warning py-1 px-2 my-2 small d-none" role="alert">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                <span id="previewWarningText"></span>
+                            </div>
                             <hr class="my-2">
                             <div class="d-flex justify-content-between align-items-center">
                                 <span class="fw-bold text-dark">Estimated Grand Total:</span>
@@ -303,7 +373,7 @@ $posted_tax = $_POST["tax"] ?? "0";
                             <a href="index.php" class="btn btn-outline-secondary px-3">
                                 Cancel
                             </a>
-                            <button type="submit" class="btn btn-primary px-4 d-inline-flex align-items-center gap-1 shadow-sm">
+                            <button type="submit" id="submitBillBtn" class="btn btn-primary px-4 d-inline-flex align-items-center gap-1 shadow-sm">
                                 <i class="bi bi-receipt"></i>
                                 <span>Generate Bill</span>
                             </button>
@@ -318,30 +388,111 @@ $posted_tax = $_POST["tax"] ?? "0";
                     const orderSelect = document.getElementById('orderSelect');
                     const discountInput = document.getElementById('discountInput');
                     const taxInput = document.getElementById('taxInput');
+                    const taxTypeManual = document.getElementById('taxTypeManual');
+                    const taxTypePercentage = document.getElementById('taxTypePercentage');
+                    const taxAddon = document.getElementById('taxAddon');
+                    const taxHelpText = document.getElementById('taxHelpText');
+                    const taxTypeLabel = document.getElementById('taxTypeLabel');
 
                     const previewSubtotal = document.getElementById('previewSubtotal');
                     const previewDiscount = document.getElementById('previewDiscount');
                     const previewTax = document.getElementById('previewTax');
                     const previewTotal = document.getElementById('previewTotal');
+                    const previewWarning = document.getElementById('previewWarning');
+                    const previewWarningText = document.getElementById('previewWarningText');
+                    const submitBillBtn = document.getElementById('submitBillBtn');
+
+                    function updateModeUI() {
+                        const isPercentage = taxTypePercentage.checked;
+                        if (isPercentage) {
+                            taxAddon.textContent = '%';
+                            taxHelpText.textContent = 'Percentage calculated on pre-discount subtotal.';
+                            taxTypeLabel.textContent = 'Mode: Percentage Rate';
+                        } else {
+                            taxAddon.textContent = 'Rs.';
+                            taxHelpText.textContent = 'Fixed monetary surcharge added to bill.';
+                            taxTypeLabel.textContent = 'Mode: Fixed Amount';
+                        }
+                    }
 
                     function updatePreview() {
                         const selectedOption = orderSelect.options[orderSelect.selectedIndex];
                         const subtotal = selectedOption ? parseFloat(selectedOption.getAttribute('data-amount') || 0) : 0;
                         const discount = parseFloat(discountInput.value || 0);
-                        const tax = parseFloat(taxInput.value || 0);
+                        const taxInputVal = parseFloat(taxInput.value || 0);
+                        const isPercentage = taxTypePercentage.checked;
 
-                        const total = Math.max(0, subtotal - discount + tax);
+                        let taxAmount = 0;
+                        let hasError = false;
+                        let errorMessage = '';
+
+                        if (isNaN(discount) || discount < 0) {
+                            hasError = true;
+                            errorMessage = 'Discount cannot be negative.';
+                        } else if (discount > subtotal) {
+                            hasError = true;
+                            errorMessage = 'Discount exceeds order subtotal.';
+                        }
+
+                        if (isNaN(taxInputVal) || taxInputVal < 0) {
+                            hasError = true;
+                            errorMessage = 'Tax input cannot be negative.';
+                        } else if (isPercentage) {
+                            // Half-up rounding on cents: (subtotal * taxInputVal / 100)
+                            taxAmount = Math.round((subtotal * taxInputVal / 100) * 100) / 100;
+                            if (taxAmount > 99999999.99) {
+                                hasError = true;
+                                errorMessage = 'Calculated tax exceeds maximum permitted limit.';
+                            }
+                        } else {
+                            taxAmount = taxInputVal;
+                            if (taxAmount > 99999999.99) {
+                                hasError = true;
+                                errorMessage = 'Tax amount exceeds maximum permitted limit.';
+                            }
+                        }
+
+                        const grandTotal = subtotal - discount + taxAmount;
+                        if (grandTotal > 99999999.99) {
+                            hasError = true;
+                            errorMessage = 'Estimated grand total exceeds maximum permitted limit.';
+                        }
 
                         previewSubtotal.textContent = 'Rs. ' + subtotal.toFixed(2);
-                        previewDiscount.textContent = '- Rs. ' + discount.toFixed(2);
-                        previewTax.textContent = '+ Rs. ' + tax.toFixed(2);
-                        previewTotal.textContent = 'Rs. ' + total.toFixed(2);
+                        previewDiscount.textContent = '- Rs. ' + (isNaN(discount) ? '0.00' : discount.toFixed(2));
+                        
+                        if (isPercentage) {
+                            previewTax.textContent = '+ Rs. ' + taxAmount.toFixed(2) + ' (' + (isNaN(taxInputVal) ? '0' : taxInputVal.toFixed(2)) + '%)';
+                        } else {
+                            previewTax.textContent = '+ Rs. ' + taxAmount.toFixed(2);
+                        }
+
+                        previewTotal.textContent = 'Rs. ' + (isNaN(grandTotal) ? '0.00' : grandTotal.toFixed(2));
+
+                        if (hasError) {
+                            previewWarning.classList.remove('d-none');
+                            previewWarningText.textContent = errorMessage;
+                            submitBillBtn.disabled = true;
+                        } else {
+                            previewWarning.classList.add('d-none');
+                            previewWarningText.textContent = '';
+                            submitBillBtn.disabled = false;
+                        }
                     }
 
                     orderSelect.addEventListener('change', updatePreview);
                     discountInput.addEventListener('input', updatePreview);
                     taxInput.addEventListener('input', updatePreview);
+                    taxTypeManual.addEventListener('change', function() {
+                        updateModeUI();
+                        updatePreview();
+                    });
+                    taxTypePercentage.addEventListener('change', function() {
+                        updateModeUI();
+                        updatePreview();
+                    });
 
+                    updateModeUI();
                     updatePreview();
                 });
             </script>

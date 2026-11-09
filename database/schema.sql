@@ -32,6 +32,8 @@ CREATE TABLE `bills` (
   `order_id` int(11) NOT NULL,
   `subtotal` decimal(10,2) NOT NULL,
   `discount` decimal(10,2) DEFAULT 0.00,
+  `tax_type` enum('manual','percentage') NOT NULL DEFAULT 'manual',
+  `tax_input` decimal(10,2) NOT NULL DEFAULT 0.00,
   `tax` decimal(10,2) DEFAULT 0.00,
   `total_amount` decimal(10,2) NOT NULL,
   `payment_status` enum('unpaid','paid') DEFAULT 'unpaid',

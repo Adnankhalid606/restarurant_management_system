@@ -17,6 +17,8 @@ $sql = "SELECT
             bills.order_id,
             bills.subtotal,
             bills.discount,
+            bills.tax_type,
+            bills.tax_input,
             bills.tax,
             bills.total_amount,
             bills.payment_status,
@@ -230,9 +232,15 @@ $is_paid = ($bill["payment_status"] === "paid");
                                 <span>- Rs. <?php echo number_format($bill["discount"], 2); ?></span>
                             </div>
                         <?php } ?>
-                        <?php if ($bill["tax"] > 0) { ?>
+                        <?php if ($bill["tax"] > 0) { 
+                            $tax_label_extra = "";
+                            if (($bill["tax_type"] ?? "") === "percentage" && isset($bill["tax_input"])) {
+                                $formatted_rate = rtrim(rtrim(number_format((float)$bill["tax_input"], 2), '0'), '.');
+                                $tax_label_extra = " (" . htmlspecialchars($formatted_rate, ENT_QUOTES, 'UTF-8') . "%)";
+                            }
+                        ?>
                             <div class="d-flex justify-content-between py-1 text-muted">
-                                <span>Tax / Surcharge:</span>
+                                <span>Tax / Surcharge<?php echo $tax_label_extra; ?>:</span>
                                 <span>+ Rs. <?php echo number_format($bill["tax"], 2); ?></span>
                             </div>
                         <?php } ?>
