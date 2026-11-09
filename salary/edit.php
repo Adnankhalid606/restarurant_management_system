@@ -278,12 +278,10 @@ require_once "../includes/header.php";
                     </div>
 
                     <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                        <a href="delete.php?id=<?php echo $salary["id"]; ?>" 
-                           class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1"
-                           onclick="return confirm('Are you sure you want to delete this salary record?');">
+                        <button type="submit" form="deleteSalaryForm" class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1">
                             <i class="bi bi-trash"></i>
                             <span>Delete Record</span>
-                        </a>
+                        </button>
                         <div class="d-flex align-items-center gap-2">
                             <a href="index.php" class="btn btn-outline-secondary px-3">
                                 Cancel
@@ -294,6 +292,11 @@ require_once "../includes/header.php";
                             </button>
                         </div>
                     </div>
+                </form>
+
+                <form id="deleteSalaryForm" method="POST" action="delete.php" class="d-none" onsubmit="return confirm('Are you sure you want to delete this salary record?');">
+                    <?php echo csrf_field(); ?>
+                    <input type="hidden" name="id" value="<?php echo $salary["id"]; ?>">
                 </form>
             </div>
         </div>

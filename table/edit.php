@@ -196,12 +196,10 @@ $display_status = isset($_POST["status"]) ? $_POST["status"] : $table["status"];
 
                     <!-- Actions -->
                     <div class="d-flex align-items-center justify-content-between pt-3 border-top">
-                        <a href="delete.php?id=<?php echo $table["id"]; ?>" 
-                           class="btn btn-outline-danger px-3 d-inline-flex align-items-center gap-1"
-                           onclick="return confirm('Are you sure you want to delete Table <?php echo htmlspecialchars($table['table_number'], ENT_QUOTES, 'UTF-8'); ?>?');">
+                        <button type="submit" form="deleteTableForm" class="btn btn-outline-danger px-3 d-inline-flex align-items-center gap-1">
                             <i class="bi bi-trash"></i>
                             <span>Delete</span>
-                        </a>
+                        </button>
                         <div class="d-flex align-items-center gap-2">
                             <a href="index.php" class="btn btn-outline-secondary px-3">
                                 Cancel
@@ -212,6 +210,11 @@ $display_status = isset($_POST["status"]) ? $_POST["status"] : $table["status"];
                             </button>
                         </div>
                     </div>
+                </form>
+
+                <form id="deleteTableForm" method="POST" action="delete.php" class="d-none" onsubmit="return confirm('Are you sure you want to delete Table <?php echo htmlspecialchars($table['table_number'], ENT_QUOTES, 'UTF-8'); ?>?');">
+                    <?php echo csrf_field(); ?>
+                    <input type="hidden" name="id" value="<?php echo $table["id"]; ?>">
                 </form>
             </div>
         </div>

@@ -248,12 +248,13 @@ require_once "../includes/header.php";
                                            title="Edit Menu Item">
                                             <i class="bi bi-pencil"></i>
                                         </a>
-                                        <a href="delete.php?id=<?php echo $item["id"]; ?>" 
-                                           class="btn btn-outline-danger btn-sm" 
-                                           title="Delete Menu Item"
-                                           onclick="return confirm('Are you sure you want to delete menu item <?php echo htmlspecialchars(addslashes($item['name']), ENT_QUOTES, 'UTF-8'); ?>? Note: Items with existing orders or recipes cannot be deleted.');">
-                                            <i class="bi bi-trash"></i>
-                                        </a>
+                                        <form method="POST" action="delete.php" class="d-inline m-0 p-0" onsubmit="return confirm('Are you sure you want to delete menu item <?php echo htmlspecialchars(addslashes($item['name']), ENT_QUOTES, 'UTF-8'); ?>? Note: Items with existing orders or recipes cannot be deleted.');">
+                                            <?php echo csrf_field(); ?>
+                                            <input type="hidden" name="id" value="<?php echo $item["id"]; ?>">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete Menu Item">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
                                     </div>
                                 <?php } else { ?>
                                     <span class="text-muted small">View Only</span>

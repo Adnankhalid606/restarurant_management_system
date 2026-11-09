@@ -74,11 +74,12 @@ if ($role === 'admin') {
         </div>
 
         <!-- Quick Logout Action -->
-        <a href="<?php echo $base_path; ?>auth/logout.php" 
-           class="btn btn-sm btn-outline-secondary ms-1 d-flex align-items-center gap-1" 
-           title="Sign Out">
-            <i class="bi bi-box-arrow-right"></i>
-            <span class="d-none d-lg-inline">Logout</span>
-        </a>
+        <form method="POST" action="<?php echo $base_path; ?>auth/logout.php" class="d-inline m-0 p-0">
+            <?php echo csrf_field(); ?>
+            <button type="submit" class="btn btn-sm btn-outline-secondary ms-1 d-flex align-items-center gap-1" title="Sign Out">
+                <i class="bi bi-box-arrow-right"></i>
+                <span class="d-none d-lg-inline">Logout</span>
+            </button>
+        </form>
     </div>
 </header>

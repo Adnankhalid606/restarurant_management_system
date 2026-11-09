@@ -223,12 +223,14 @@ $status_icon = match($st) {
                 </a>
                 <?php if (($_SESSION['role'] ?? '') === 'admin') { ?>
                     <hr class="my-1">
-                    <a href="delete.php?id=<?php echo $reservation["id"]; ?>" 
-                       class="btn btn-outline-danger d-flex align-items-center justify-content-center gap-2"
-                       onclick="return confirm('Are you sure you want to permanently cancel and delete reservation #<?php echo $reservation['id']; ?>?');">
-                        <i class="bi bi-trash"></i>
-                        <span>Delete Reservation</span>
-                    </a>
+                    <form method="POST" action="delete.php" onsubmit="return confirm('Are you sure you want to permanently cancel and delete reservation #<?php echo $reservation['id']; ?>?');">
+                        <?php echo csrf_field(); ?>
+                        <input type="hidden" name="id" value="<?php echo $reservation["id"]; ?>">
+                        <button type="submit" class="btn btn-outline-danger w-100 d-flex align-items-center justify-content-center gap-2">
+                            <i class="bi bi-trash"></i>
+                            <span>Delete Reservation</span>
+                        </button>
+                    </form>
                 <?php } ?>
             </div>
         </div>

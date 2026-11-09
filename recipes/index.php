@@ -203,13 +203,14 @@ require_once "../includes/header.php";
                                         </a>
 
                                         <?php if (($_SESSION['role'] ?? '') === 'admin') { ?>
-                                            <a href="delete.php?id=<?php echo $recipe["id"]; ?>" 
-                                               class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1"
-                                               title="Delete Recipe"
-                                               onclick="return confirm('Are you sure you want to delete the recipe formulation for <?php echo htmlspecialchars(addslashes($recipe['menu_item_name'])); ?>? This will stop automatic inventory deduction for this item.');">
-                                                <i class="bi bi-trash"></i>
-                                                <span>Delete</span>
-                                            </a>
+                                            <form method="POST" action="delete.php" class="d-inline m-0 p-0" onsubmit="return confirm('Are you sure you want to delete the recipe formulation for <?php echo htmlspecialchars(addslashes($recipe['menu_item_name'])); ?>? This will stop automatic inventory deduction for this item.');">
+                                                <?php echo csrf_field(); ?>
+                                                <input type="hidden" name="id" value="<?php echo $recipe["id"]; ?>">
+                                                <button type="submit" class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1" title="Delete Recipe">
+                                                    <i class="bi bi-trash"></i>
+                                                    <span>Delete</span>
+                                                </button>
+                                            </form>
                                         <?php } ?>
                                     </div>
                                 </td>

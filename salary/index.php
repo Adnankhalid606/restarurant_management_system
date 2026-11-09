@@ -253,12 +253,13 @@ require_once "../includes/header.php";
                                            title="Edit Record">
                                             <i class="bi bi-pencil"></i>
                                         </a>
-                                        <a href="delete.php?id=<?php echo $row["id"]; ?>" 
-                                           class="btn btn-outline-danger btn-sm" 
-                                           onclick="return confirm('Are you sure you want to delete this salary record?');" 
-                                           title="Delete Record">
-                                            <i class="bi bi-trash"></i>
-                                        </a>
+                                        <form method="POST" action="delete.php" class="d-inline m-0 p-0" onsubmit="return confirm('Are you sure you want to delete this salary record?');">
+                                            <?php echo csrf_field(); ?>
+                                            <input type="hidden" name="id" value="<?php echo $row["id"]; ?>">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete Record">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>

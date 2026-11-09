@@ -186,12 +186,13 @@ require_once "../includes/header.php";
                                     </a>
 
                                     <?php if (($_SESSION['role'] ?? '') === 'admin') { ?>
-                                        <a href="delete.php?id=<?php echo $c["id"]; ?>" 
-                                           class="btn btn-outline-danger btn-sm" 
-                                           title="Delete Customer"
-                                           onclick="return confirm('Are you sure you want to delete customer <?php echo htmlspecialchars(addslashes($c['name']), ENT_QUOTES, 'UTF-8'); ?>? Note: Customers with existing orders cannot be deleted.');">
-                                            <i class="bi bi-trash"></i>
-                                        </a>
+                                        <form method="POST" action="delete.php" class="d-inline m-0 p-0" onsubmit="return confirm('Are you sure you want to delete customer <?php echo htmlspecialchars(addslashes($c['name']), ENT_QUOTES, 'UTF-8'); ?>? Note: Customers with existing orders cannot be deleted.');">
+                                            <?php echo csrf_field(); ?>
+                                            <input type="hidden" name="id" value="<?php echo $c["id"]; ?>">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete Customer">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
                                     <?php } ?>
                                 </div>
                             </td>

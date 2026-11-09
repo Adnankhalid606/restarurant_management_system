@@ -5,7 +5,17 @@ require_once "../includes/role.php";
 
 requireRole(["admin"]);
 
-$id = (int) ($_GET["id"] ?? 0);
+if ($_SERVER["REQUEST_METHOD"] !== "POST") {
+    http_response_code(405);
+    exit("Method Not Allowed");
+}
+
+if (!verify_csrf_token()) {
+    http_response_code(403);
+    exit("CSRF token validation failed");
+}
+
+$id = (int) ($_POST["id"] ?? 0);
 
 if ($id <= 0) {
     $_SESSION["error"] = "Record not found or invalid identifier.";

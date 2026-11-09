@@ -206,9 +206,13 @@ require_once "../includes/header.php";
                                             <i class="bi bi-pencil"></i>
                                         </a>
                                         <?php if ($_SESSION["role"] === "admin") { ?>
-                                            <a href="delete.php?id=<?php echo $order["id"]; ?>" class="btn btn-sm btn-outline-danger py-1 px-2" title="Delete Order" onclick="return confirm('Are you sure you want to permanently delete Order #<?php echo $order["id"]; ?>?');">
-                                                <i class="bi bi-trash"></i>
-                                            </a>
+                                            <form method="POST" action="delete.php" class="d-inline m-0 p-0" onsubmit="return confirm('Are you sure you want to permanently delete Order #<?php echo $order["id"]; ?>?');">
+                                                <?php echo csrf_field(); ?>
+                                                <input type="hidden" name="id" value="<?php echo $order["id"]; ?>">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger py-1 px-2" title="Delete Order">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
                                         <?php } ?>
                                     </div>
                                 </td>

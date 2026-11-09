@@ -246,12 +246,13 @@ require_once "../includes/header.php";
                                            title="Edit Material">
                                             <i class="bi bi-pencil"></i>
                                         </a>
-                                        <a href="delete-material.php?id=<?php echo $m["id"]; ?>" 
-                                           class="btn btn-outline-danger btn-sm" 
-                                           title="Delete Material"
-                                           onclick="return confirm('Are you sure you want to delete raw material <?php echo htmlspecialchars(addslashes($m['name']), ENT_QUOTES, 'UTF-8'); ?>? Note: Materials used in recipes, purchases, or recorded transactions cannot be deleted.');">
-                                            <i class="bi bi-trash"></i>
-                                        </a>
+                                        <form method="POST" action="delete-material.php" class="d-inline m-0 p-0" onsubmit="return confirm('Are you sure you want to delete raw material <?php echo htmlspecialchars(addslashes($m['name']), ENT_QUOTES, 'UTF-8'); ?>? Note: Materials used in recipes, purchases, or recorded transactions cannot be deleted.');">
+                                            <?php echo csrf_field(); ?>
+                                            <input type="hidden" name="id" value="<?php echo $m["id"]; ?>">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete Material">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
                                     </div>
                                 <?php } else { ?>
                                     <span class="text-muted small">View Only</span>

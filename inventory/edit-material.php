@@ -179,12 +179,10 @@ require_once "../includes/header.php";
 
                     <!-- Actions -->
                     <div class="d-flex align-items-center justify-content-between pt-3 border-top">
-                        <a href="delete-material.php?id=<?php echo $id; ?>" 
-                           class="btn btn-outline-danger px-3 d-inline-flex align-items-center gap-1"
-                           onclick="return confirm('Are you sure you want to delete raw material <?php echo htmlspecialchars(addslashes($material['name']), ENT_QUOTES, 'UTF-8'); ?>? Note: Materials used in recipes, purchases, or recorded transactions cannot be deleted.');">
+                        <button type="submit" form="deleteMaterialForm" class="btn btn-outline-danger px-3 d-inline-flex align-items-center gap-1">
                             <i class="bi bi-trash"></i>
                             <span>Delete</span>
-                        </a>
+                        </button>
 
                         <div class="d-flex align-items-center gap-2">
                             <a href="materials.php" class="btn btn-outline-secondary px-3">
@@ -196,6 +194,11 @@ require_once "../includes/header.php";
                             </button>
                         </div>
                     </div>
+                </form>
+
+                <form id="deleteMaterialForm" method="POST" action="delete-material.php" class="d-none" onsubmit="return confirm('Are you sure you want to delete raw material <?php echo htmlspecialchars(addslashes($material['name']), ENT_QUOTES, 'UTF-8'); ?>? Note: Materials used in recipes, purchases, or recorded transactions cannot be deleted.');">
+                    <?php echo csrf_field(); ?>
+                    <input type="hidden" name="id" value="<?php echo $id; ?>">
                 </form>
             </div>
         </div>

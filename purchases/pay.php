@@ -118,13 +118,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         mysqli_commit($conn);
 
+        $_SESSION["flash_success"] = "Purchase #PO-" . str_pad($id, 3, '0', STR_PAD_LEFT) . " has been successfully marked as Paid.";
         header("Location: view.php?id=" . $id);
         exit;
     } catch (Exception $error) {
 
         mysqli_rollback($conn);
 
-        die($error->getMessage());
+        $_SESSION["error"] = $error->getMessage();
+        header("Location: view.php?id=" . $id);
+        exit;
     }
 }
 

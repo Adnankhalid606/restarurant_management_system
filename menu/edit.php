@@ -296,12 +296,10 @@ $has_existing_image = $existing_image_file && file_exists($existing_image_file);
 
                     <!-- Actions -->
                     <div class="d-flex align-items-center justify-content-between pt-3 border-top">
-                        <a href="delete.php?id=<?php echo $id; ?>" 
-                           class="btn btn-outline-danger px-3 d-inline-flex align-items-center gap-1"
-                           onclick="return confirm('Are you sure you want to delete menu item <?php echo htmlspecialchars(addslashes($item['name']), ENT_QUOTES, 'UTF-8'); ?>? Note: Items with existing orders or recipes cannot be deleted.');">
+                        <button type="submit" form="deleteMenuForm" class="btn btn-outline-danger px-3 d-inline-flex align-items-center gap-1">
                             <i class="bi bi-trash"></i>
                             <span>Delete</span>
-                        </a>
+                        </button>
 
                         <div class="d-flex align-items-center gap-2">
                             <a href="index.php" class="btn btn-outline-secondary px-3">
@@ -313,6 +311,12 @@ $has_existing_image = $existing_image_file && file_exists($existing_image_file);
                             </button>
                         </div>
                     </div>
+                </form>
+
+                <form id="deleteMenuForm" method="POST" action="delete.php" class="d-none" onsubmit="return confirm('Are you sure you want to delete menu item <?php echo htmlspecialchars(addslashes($item['name']), ENT_QUOTES, 'UTF-8'); ?>? Note: Items with existing orders or recipes cannot be deleted.');">
+                    <?php echo csrf_field(); ?>
+                    <input type="hidden" name="id" value="<?php echo $id; ?>">
+                </form>
                 </form>
             </div>
         </div>

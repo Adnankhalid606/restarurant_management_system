@@ -224,13 +224,14 @@ require_once "../includes/header.php";
                                             <span>Edit</span>
                                         </a>
 
-                                        <a href="delete.php?id=<?php echo $exp["id"]; ?>" 
-                                           class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1"
-                                           title="Delete Expense"
-                                           onclick="return confirm('Are you sure you want to delete Expense #EXP-<?php echo str_pad($exp["id"], 3, '0', STR_PAD_LEFT); ?> (Rs. <?php echo number_format($amt_display, 2); ?>)?');">
-                                            <i class="bi bi-trash"></i>
-                                            <span>Delete</span>
-                                        </a>
+                                        <form method="POST" action="delete.php" class="d-inline m-0 p-0" onsubmit="return confirm('Are you sure you want to delete Expense #EXP-<?php echo str_pad($exp["id"], 3, '0', STR_PAD_LEFT); ?> (Rs. <?php echo number_format($amt_display, 2); ?>)?');">
+                                            <?php echo csrf_field(); ?>
+                                            <input type="hidden" name="id" value="<?php echo $exp["id"]; ?>">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1" title="Delete Expense">
+                                                <i class="bi bi-trash"></i>
+                                                <span>Delete</span>
+                                            </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>

@@ -109,12 +109,14 @@ require_once "../includes/header.php";
             <span>Print BOM</span>
         </button>
         <?php if (($_SESSION['role'] ?? '') === 'admin') { ?>
-            <a href="delete.php?id=<?php echo $recipe["id"]; ?>" 
-               class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1"
-               onclick="return confirm('Are you sure you want to delete this recipe for <?php echo htmlspecialchars(addslashes($recipe['menu_item_name'])); ?>? Automatic inventory deduction will be stopped for this dish.');">
-                <i class="bi bi-trash"></i>
-                <span>Delete</span>
-            </a>
+            <form method="POST" action="delete.php" class="d-inline m-0 p-0" onsubmit="return confirm('Are you sure you want to delete this recipe for <?php echo htmlspecialchars(addslashes($recipe['menu_item_name'])); ?>? Automatic inventory deduction will be stopped for this dish.');">
+                <?php echo csrf_field(); ?>
+                <input type="hidden" name="id" value="<?php echo $recipe["id"]; ?>">
+                <button type="submit" class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1">
+                    <i class="bi bi-trash"></i>
+                    <span>Delete</span>
+                </button>
+            </form>
         <?php } ?>
     </div>
 </div>

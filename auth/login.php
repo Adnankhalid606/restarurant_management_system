@@ -57,11 +57,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         } else {
 
-            $old_csrf = $_SESSION['_csrf_token'] ?? null;
             session_regenerate_id(true);
-            if ($old_csrf) {
-                $_SESSION['_csrf_token'] = $old_csrf;
-            }
+            $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
 
             $_SESSION["user_id"] = $user["id"];
             $_SESSION["user_name"] = $user["name"];

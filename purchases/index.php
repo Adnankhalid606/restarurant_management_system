@@ -251,13 +251,14 @@ require_once "../includes/header.php";
                                             </a>
                                         <?php } ?>
 
-                                        <a href="delete.php?id=<?php echo $p["id"]; ?>" 
-                                           class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1"
-                                           title="Delete Purchase"
-                                           onclick="return confirm('Are you sure you want to delete Purchase #PO-<?php echo str_pad($p["id"], 3, '0', STR_PAD_LEFT); ?>? Note: Purchases with recorded inventory movements cannot be deleted.');">
-                                            <i class="bi bi-trash"></i>
-                                            <span>Delete</span>
-                                        </a>
+                                        <form method="POST" action="delete.php" class="d-inline" onsubmit="return confirm('Are you sure you want to delete Purchase #PO-<?php echo str_pad($p["id"], 3, '0', STR_PAD_LEFT); ?>? Note: Purchases with recorded inventory movements cannot be deleted.');">
+                                            <?php echo csrf_field(); ?>
+                                            <input type="hidden" name="id" value="<?php echo $p["id"]; ?>">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1" title="Delete Purchase">
+                                                <i class="bi bi-trash"></i>
+                                                <span>Delete</span>
+                                            </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>

@@ -5,7 +5,18 @@ require_once "../includes/role.php";
 
 requireRole(["admin"]);
 
-$id = (int) ($_GET["id"] ?? 0);
+if ($_SERVER["REQUEST_METHOD"] !== "POST") {
+    http_response_code(405);
+    header("Allow: POST");
+    echo "Method Not Allowed. Deletion requires a POST request.";
+    exit;
+}
+
+if (!verify_csrf_token()) {
+    csrf_failure_response();
+}
+
+$id = (int) ($_POST["id"] ?? 0);
 
 if ($id <= 0) {
     $_SESSION["error"] = "Record not found or invalid identifier.";
@@ -46,7 +57,7 @@ try {
     mysqli_stmt_bind_param($stmt, "i", $id);
     mysqli_stmt_execute($stmt);
 
-    $_SESSION["success"] = "Supplier '" . $supplier["name"] . "' was removed successfully.";
+    $_SESSION["flash_success"] = "Supplier '" . $supplier["name"] . "' was removed successfully.";
 } catch (mysqli_sql_exception $e) {
     $_SESSION["error"] = "Database error: Cannot delete supplier due to linked records.";
 }

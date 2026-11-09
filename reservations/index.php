@@ -230,12 +230,13 @@ require_once "../includes/header.php";
                                     <i class="bi bi-pencil"></i>
                                 </a>
                                 <?php if (($_SESSION['role'] ?? '') === 'admin') { ?>
-                                    <a href="delete.php?id=<?php echo $r['id']; ?>" 
-                                       class="btn btn-outline-danger btn-sm" 
-                                       title="Delete Reservation"
-                                       onclick="return confirm('Are you sure you want to delete reservation #<?php echo $r['id']; ?>?');">
-                                        <i class="bi bi-trash"></i>
-                                    </a>
+                                    <form method="POST" action="delete.php" class="d-inline m-0 p-0" onsubmit="return confirm('Are you sure you want to delete reservation #<?php echo $r['id']; ?>?');">
+                                        <?php echo csrf_field(); ?>
+                                        <input type="hidden" name="id" value="<?php echo $r['id']; ?>">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete Reservation">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
                                 <?php } ?>
                             </td>
                         </tr>

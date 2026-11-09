@@ -332,12 +332,10 @@ require_once "../includes/header.php";
                                 <i class="bi bi-info-circle me-1"></i>You cannot delete your own active account.
                             </span>
                         <?php } else { ?>
-                            <a href="delete.php?id=<?php echo $user["id"]; ?>" 
-                               class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1"
-                               onclick="return confirm('Are you sure you want to delete this user account?');">
+                            <button type="submit" form="deleteUserForm" class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1">
                                 <i class="bi bi-trash"></i>
                                 <span>Delete Account</span>
-                            </a>
+                            </button>
                         <?php } ?>
 
                         <div class="d-flex align-items-center gap-2">
@@ -351,6 +349,13 @@ require_once "../includes/header.php";
                         </div>
                     </div>
                 </form>
+
+                <?php if (!isset($_SESSION["user_id"]) || (int) $_SESSION["user_id"] !== (int) $user["id"]) { ?>
+                    <form id="deleteUserForm" method="POST" action="delete.php" class="d-none" onsubmit="return confirm('Are you sure you want to delete this user account?');">
+                        <?php echo csrf_field(); ?>
+                        <input type="hidden" name="id" value="<?php echo $user["id"]; ?>">
+                    </form>
+                <?php } ?>
             </div>
         </div>
     </div>

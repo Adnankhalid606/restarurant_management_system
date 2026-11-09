@@ -106,12 +106,14 @@ require_once "../includes/header.php";
             <i class="bi bi-journal-text text-primary"></i>
             <span>View Ledger</span>
         </a>
-        <a href="delete.php?id=<?php echo $supplier["id"]; ?>" 
-           class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1"
-           onclick="return confirm('Are you sure you want to delete supplier <?php echo htmlspecialchars(addslashes($supplier['name']), ENT_QUOTES, 'UTF-8'); ?>? Note: Suppliers referenced by purchase records cannot be deleted.');">
-            <i class="bi bi-trash"></i>
-            <span>Delete</span>
-        </a>
+        <form method="POST" action="delete.php" class="d-inline m-0 p-0" onsubmit="return confirm('Are you sure you want to delete supplier <?php echo htmlspecialchars(addslashes($supplier['name']), ENT_QUOTES, 'UTF-8'); ?>? Note: Suppliers referenced by purchase records cannot be deleted.');">
+            <?php echo csrf_field(); ?>
+            <input type="hidden" name="id" value="<?php echo $supplier["id"]; ?>">
+            <button type="submit" class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1">
+                <i class="bi bi-trash"></i>
+                <span>Delete</span>
+            </button>
+        </form>
     </div>
 </div>
 

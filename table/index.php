@@ -201,12 +201,13 @@ require_once "../includes/header.php";
                                     <a href="edit.php?id=<?php echo $t['id']; ?>" class="btn btn-outline-secondary btn-sm" title="Edit Table">
                                         <i class="bi bi-pencil me-1"></i>Edit
                                     </a>
-                                    <a href="delete.php?id=<?php echo $t['id']; ?>" 
-                                       class="btn btn-outline-danger btn-sm" 
-                                       title="Delete Table"
-                                       onclick="return confirm('Are you sure you want to delete Table <?php echo htmlspecialchars($t['table_number'], ENT_QUOTES, 'UTF-8'); ?>?');">
-                                        <i class="bi bi-trash"></i>
-                                    </a>
+                                    <form method="POST" action="delete.php" class="d-inline" onsubmit="return confirm('Are you sure you want to delete Table <?php echo htmlspecialchars($t['table_number'], ENT_QUOTES, 'UTF-8'); ?>?');">
+                                        <?php echo csrf_field(); ?>
+                                        <input type="hidden" name="id" value="<?php echo $t['id']; ?>">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete Table">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
                                 </div>
                             <?php } else { ?>
                                 <div class="pt-2 border-top text-muted small text-end">
@@ -268,12 +269,13 @@ require_once "../includes/header.php";
                                             <a href="edit.php?id=<?php echo $t['id']; ?>" class="btn btn-outline-secondary btn-sm" title="Edit Table">
                                                 <i class="bi bi-pencil"></i>
                                             </a>
-                                            <a href="delete.php?id=<?php echo $t['id']; ?>" 
-                                               class="btn btn-outline-danger btn-sm" 
-                                               title="Delete Table"
-                                               onclick="return confirm('Are you sure you want to delete Table <?php echo htmlspecialchars($t['table_number'], ENT_QUOTES, 'UTF-8'); ?>?');">
-                                                <i class="bi bi-trash"></i>
-                                            </a>
+                                            <form method="POST" action="delete.php" class="d-inline" onsubmit="return confirm('Are you sure you want to delete Table <?php echo htmlspecialchars($t['table_number'], ENT_QUOTES, 'UTF-8'); ?>?');">
+                                                <?php echo csrf_field(); ?>
+                                                <input type="hidden" name="id" value="<?php echo $t['id']; ?>">
+                                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete Table">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
                                         </td>
                                     <?php } ?>
                                 </tr>

@@ -98,12 +98,14 @@ $is_paid = ($bill["payment_status"] === "paid");
             <span>Print Receipt</span>
         </button>
         <?php if (!$is_paid) { ?>
-            <a href="pay.php?id=<?php echo $bill["id"]; ?>" 
-               class="btn btn-success btn-sm d-inline-flex align-items-center gap-1 shadow-sm px-3"
-               onclick="return confirm('Confirm settlement of Rs. <?php echo number_format($bill['total_amount'], 2); ?> for Bill #<?php echo $bill['id']; ?>?');">
-                <i class="bi bi-cash-stack"></i>
-                <span>Mark as Paid</span>
-            </a>
+            <form method="POST" action="pay.php" class="d-inline m-0 p-0" onsubmit="return confirm('Confirm settlement of Rs. <?php echo number_format($bill['total_amount'], 2); ?> for Bill #<?php echo $bill['id']; ?>?');">
+                <?php echo csrf_field(); ?>
+                <input type="hidden" name="id" value="<?php echo $bill["id"]; ?>">
+                <button type="submit" class="btn btn-success btn-sm d-inline-flex align-items-center gap-1 shadow-sm px-3">
+                    <i class="bi bi-cash-stack"></i>
+                    <span>Mark as Paid</span>
+                </button>
+            </form>
         <?php } ?>
     </div>
 </div>

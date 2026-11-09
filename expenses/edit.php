@@ -115,12 +115,14 @@ require_once "../includes/header.php";
             <i class="bi bi-arrow-left"></i>
             <span>Back to Expenses</span>
         </a>
-        <a href="delete.php?id=<?php echo $expense["id"]; ?>" 
-           class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1"
-           onclick="return confirm('Are you sure you want to delete Expense #EXP-<?php echo str_pad($expense["id"], 3, '0', STR_PAD_LEFT); ?>?');">
-            <i class="bi bi-trash"></i>
-            <span>Delete</span>
-        </a>
+        <form method="POST" action="delete.php" class="d-inline m-0 p-0" onsubmit="return confirm('Are you sure you want to delete Expense #EXP-<?php echo str_pad($expense["id"], 3, '0', STR_PAD_LEFT); ?>?');">
+            <?php echo csrf_field(); ?>
+            <input type="hidden" name="id" value="<?php echo $expense["id"]; ?>">
+            <button type="submit" class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1">
+                <i class="bi bi-trash"></i>
+                <span>Delete</span>
+            </button>
+        </form>
 </div>
 
 <?php if ($error !== "") { ?>

@@ -184,9 +184,12 @@ function isItemActive($key, $script_name, $active_menu) {
                 </small>
             </div>
         </div>
-        <a href="<?php echo $base_path; ?>auth/logout.php" class="btn btn-sm btn-outline-light border-0 p-1" title="Sign Out">
-            <i class="bi bi-box-arrow-right fs-5"></i>
-        </a>
+        <form method="POST" action="<?php echo $base_path; ?>auth/logout.php" class="d-inline m-0 p-0">
+            <?php echo csrf_field(); ?>
+            <button type="submit" class="btn btn-sm btn-outline-light border-0 p-1" title="Sign Out">
+                <i class="bi bi-box-arrow-right fs-5"></i>
+            </button>
+        </form>
     </div>
 </aside>
 

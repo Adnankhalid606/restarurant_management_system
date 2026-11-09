@@ -229,22 +229,24 @@ require_once "../includes/header.php";
                                     </a>
 
                                     <?php if ($bill["payment_status"] === "unpaid") { ?>
-                                        <a href="pay.php?id=<?php echo $bill["id"]; ?>" 
-                                           class="btn btn-success btn-sm px-2 d-inline-flex align-items-center gap-1 shadow-sm" 
-                                           title="Mark Bill as Paid"
-                                           onclick="return confirm('Confirm payment collection of Rs. <?php echo number_format($bill['total_amount'], 2); ?> for Bill #<?php echo $bill['id']; ?>?');">
-                                            <i class="bi bi-cash"></i>
-                                            <span class="small fw-semibold">Pay</span>
-                                        </a>
+                                        <form method="POST" action="pay.php" class="d-inline m-0 p-0" onsubmit="return confirm('Confirm payment collection of Rs. <?php echo number_format($bill['total_amount'], 2); ?> for Bill #<?php echo $bill['id']; ?>?');">
+                                            <?php echo csrf_field(); ?>
+                                            <input type="hidden" name="id" value="<?php echo $bill["id"]; ?>">
+                                            <button type="submit" class="btn btn-success btn-sm px-2 d-inline-flex align-items-center gap-1 shadow-sm" title="Mark Bill as Paid">
+                                                <i class="bi bi-cash"></i>
+                                                <span class="small fw-semibold">Pay</span>
+                                            </button>
+                                        </form>
                                     <?php } ?>
 
                                     <?php if (($_SESSION['role'] ?? '') === 'admin' && $bill["payment_status"] === "unpaid") { ?>
-                                        <a href="delete.php?id=<?php echo $bill["id"]; ?>" 
-                                           class="btn btn-outline-danger btn-sm" 
-                                           title="Delete Unpaid Bill"
-                                           onclick="return confirm('Are you sure you want to delete unpaid Bill #<?php echo $bill['id']; ?>?');">
-                                            <i class="bi bi-trash"></i>
-                                        </a>
+                                        <form method="POST" action="delete.php" class="d-inline m-0 p-0" onsubmit="return confirm('Are you sure you want to delete unpaid Bill #<?php echo $bill['id']; ?>?');">
+                                            <?php echo csrf_field(); ?>
+                                            <input type="hidden" name="id" value="<?php echo $bill["id"]; ?>">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete Unpaid Bill">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
                                     <?php } ?>
                                 </div>
                             </td>

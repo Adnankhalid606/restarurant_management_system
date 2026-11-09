@@ -292,12 +292,13 @@ require_once "../includes/header.php";
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         <?php } else { ?>
-                                            <a href="delete.php?id=<?php echo $user["id"]; ?>" 
-                                                class="btn btn-outline-danger btn-sm" 
-                                                onclick="return confirm('Are you sure you want to delete this user account?');" 
-                                                title="Delete User Account">
-                                                <i class="bi bi-trash"></i>
-                                            </a>
+                                            <form method="POST" action="delete.php" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this user account?');">
+                                                <?php echo csrf_field(); ?>
+                                                <input type="hidden" name="id" value="<?php echo $user["id"]; ?>">
+                                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete User Account">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
                                         <?php } ?>
                                     </div>
                                 </td>
