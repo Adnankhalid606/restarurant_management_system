@@ -35,92 +35,152 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $quantities = $_POST["quantity"] ?? [];
     $unit_prices = $_POST["unit_price"] ?? [];
 
-    if (
-        empty($raw_material_ids)
-        ||
-        empty($quantities)
-        ||
-        empty($unit_prices)
+    // Verify supplier selection
+    if ($supplier_id <= 0) {
+        $error = "Please select a valid supplier.";
+    } elseif (!in_array($payment_status, ["unpaid", "partial", "paid"], true)) {
+        $error = "Invalid payment status selected.";
+    } elseif (
+        !is_array($raw_material_ids)
+        || !is_array($quantities)
+        || !is_array($unit_prices)
+        || empty($raw_material_ids)
+        || empty($quantities)
+        || empty($unit_prices)
     ) {
-
-        $error = "Please add at least one raw material.";
-
+        $error = "Please add at least one raw material line item.";
     } elseif (
         count($raw_material_ids) !== count($quantities)
-        ||
-        count($raw_material_ids) !== count($unit_prices)
+        || count($raw_material_ids) !== count($unit_prices)
     ) {
-
-        $error = "Invalid purchase items.";
-
+        $error = "Invalid purchase items: form row counts do not match.";
     }
 
     if ($error === "") {
+        // Pre-validate all item rows strictly before entering database transaction
+        $items_to_process = [];
+        $seen_materials = [];
 
+        foreach ($raw_material_ids as $index => $raw_mat_val) {
+            $row_num = $index + 1;
+
+            // 1. Raw material identifier validation
+            if (!is_scalar($raw_mat_val) || !is_numeric($raw_mat_val)) {
+                $error = "Row #{$row_num}: Invalid raw material selected.";
+                break;
+            }
+            $mat_id = (int) $raw_mat_val;
+            if ($mat_id <= 0) {
+                $error = "Row #{$row_num}: Please select a valid raw material.";
+                break;
+            }
+            if (isset($seen_materials[$mat_id])) {
+                $error = "Row #{$row_num}: Duplicate raw material selected. Please combine quantities on a single row.";
+                break;
+            }
+            $seen_materials[$mat_id] = true;
+
+            // 2. Quantity validation (raw input string check)
+            $qty_raw = $quantities[$index] ?? null;
+            if ($qty_raw === null || is_array($qty_raw) || !is_scalar($qty_raw)) {
+                $error = "Row #{$row_num}: Missing quantity.";
+                break;
+            }
+            $qty_str = trim((string) $qty_raw);
+            if ($qty_str === "") {
+                $error = "Row #{$row_num}: Quantity is required.";
+                break;
+            }
+            // Strict regex for decimal(10,3): optional leading digits, up to 3 decimal places
+            if (!preg_match('/^\d+(\.\d{1,3})?$/', $qty_str)) {
+                $error = "Row #{$row_num}: Quantity must be a valid positive number with at most 3 decimal places.";
+                break;
+            }
+            $qty_float = (float) $qty_str;
+            if (!is_finite($qty_float) || $qty_float <= 0) {
+                $error = "Row #{$row_num}: Quantity must be greater than zero.";
+                break;
+            }
+            if ($qty_float > 9999999.999) {
+                $error = "Row #{$row_num}: Quantity exceeds the maximum allowed limit (9,999,999.999).";
+                break;
+            }
+
+            // 3. Unit Price validation (raw input string check)
+            $price_raw = $unit_prices[$index] ?? null;
+            if ($price_raw === null || is_array($price_raw) || !is_scalar($price_raw)) {
+                $error = "Row #{$row_num}: Missing unit price.";
+                break;
+            }
+            $price_str = trim((string) $price_raw);
+            if ($price_str === "") {
+                $error = "Row #{$row_num}: Unit price is required.";
+                break;
+            }
+            // Strict regex for decimal(10,2): non-negative number with up to 2 decimal places
+            if (!preg_match('/^\d+(\.\d{1,2})?$/', $price_str)) {
+                $error = "Row #{$row_num}: Unit price must be a valid non-negative number with at most 2 decimal places.";
+                break;
+            }
+            $price_float = (float) $price_str;
+            if (!is_finite($price_float) || $price_float < 0) {
+                $error = "Row #{$row_num}: Unit price cannot be negative.";
+                break;
+            }
+            if ($price_float > 9999999.99) {
+                $error = "Row #{$row_num}: Unit price exceeds the maximum allowed limit (9,999,999.99).";
+                break;
+            }
+
+            // 4. Calculate line subtotal rounded to 2 decimal places
+            $line_subtotal = round($qty_float * $price_float, 2);
+
+            $items_to_process[] = [
+                "raw_material_id" => $mat_id,
+                "quantity" => $qty_float,
+                "unit_price" => $price_float,
+                "subtotal" => $line_subtotal
+            ];
+        }
+    }
+
+    if ($error === "") {
         mysqli_begin_transaction($conn);
 
         try {
+            // Verify supplier exists
+            $sup_stmt = mysqli_prepare($conn, "SELECT id FROM suppliers WHERE id = ?");
+            mysqli_stmt_bind_param($sup_stmt, "i", $supplier_id);
+            mysqli_stmt_execute($sup_stmt);
+            $sup_res = mysqli_stmt_get_result($sup_stmt);
+            if (mysqli_num_rows($sup_res) === 0) {
+                throw new Exception("Selected supplier does not exist.");
+            }
 
-            $total_amount = 0;
-
+            $total_amount = 0.00;
             $items = [];
 
-            // Calculate purchase items
-            foreach ($raw_material_ids as $index => $raw_material_id) {
+            // Verify raw materials existence and calculate exact purchase header total
+            foreach ($items_to_process as $item_data) {
+                $mat_id = $item_data["raw_material_id"];
 
-                $quantity = $quantities[$index];
-                $unit_price = $unit_prices[$index];
-
-                if ($quantity <= 0) {
-
-                    throw new Exception(
-                        "Quantity must be greater than 0."
-                    );
-                }
-
-                if ($unit_price < 0) {
-
-                    throw new Exception(
-                        "Unit price cannot be negative."
-                    );
-                }
-
-                // Check raw material exists
-                $sql = "SELECT id
-                        FROM raw_materials
-                        WHERE id = ?";
-
+                $sql = "SELECT id, name FROM raw_materials WHERE id = ?";
                 $stmt = mysqli_prepare($conn, $sql);
-
-                mysqli_stmt_bind_param(
-                    $stmt,
-                    "i",
-                    $raw_material_id
-                );
-
+                mysqli_stmt_bind_param($stmt, "i", $mat_id);
                 mysqli_stmt_execute($stmt);
-
                 $result = mysqli_stmt_get_result($stmt);
-
                 $material = mysqli_fetch_assoc($result);
 
                 if (!$material) {
-
-                    throw new Exception(
-                        "Raw material not found."
-                    );
+                    throw new Exception("Raw material #{$mat_id} was not found.");
                 }
 
-                $subtotal = $quantity * $unit_price;
+                $total_amount = round($total_amount + $item_data["subtotal"], 2);
+                $items[] = $item_data;
+            }
 
-                $total_amount += $subtotal;
-
-                $items[] = [
-                    "raw_material_id" => $raw_material_id,
-                    "quantity" => $quantity,
-                    "unit_price" => $unit_price,
-                    "subtotal" => $subtotal
-                ];
+            if ($total_amount > 99999999.99) {
+                throw new Exception("Total purchase amount exceeds maximum invoice limit.");
             }
 
             // Create purchase
@@ -131,11 +191,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         payment_status,
                         purchase_date
                     )
-
                     VALUES (?, ?, ?, ?)";
 
             $stmt = mysqli_prepare($conn, $sql);
-
             mysqli_stmt_bind_param(
                 $stmt,
                 "idss",
@@ -144,14 +202,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $payment_status,
                 $purchase_date
             );
-
             mysqli_stmt_execute($stmt);
 
             $purchase_id = mysqli_insert_id($conn);
 
-            // Insert purchase items
+            // Insert purchase items, increment stock, and record inventory transaction
             foreach ($items as $item) {
-
                 $sql = "INSERT INTO purchase_items
                         (
                             purchase_id,
@@ -160,11 +216,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             unit_price,
                             subtotal
                         )
-
                         VALUES (?, ?, ?, ?, ?)";
 
                 $stmt = mysqli_prepare($conn, $sql);
-
                 mysqli_stmt_bind_param(
                     $stmt,
                     "iiddd",
@@ -174,26 +228,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     $item["unit_price"],
                     $item["subtotal"]
                 );
-
                 mysqli_stmt_execute($stmt);
 
                 // Increase stock
                 $sql = "UPDATE raw_materials
-
-                        SET current_stock =
-                            current_stock + ?
-
+                        SET current_stock = current_stock + ?
                         WHERE id = ?";
 
                 $stmt = mysqli_prepare($conn, $sql);
-
                 mysqli_stmt_bind_param(
                     $stmt,
                     "di",
                     $item["quantity"],
                     $item["raw_material_id"]
                 );
-
                 mysqli_stmt_execute($stmt);
 
                 // Create inventory transaction
@@ -205,7 +253,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             reference_type,
                             reference_id
                         )
-
                         VALUES
                         (
                             ?,
@@ -216,7 +263,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         )";
 
                 $stmt = mysqli_prepare($conn, $sql);
-
                 mysqli_stmt_bind_param(
                     $stmt,
                     "idi",
@@ -224,7 +270,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     $item["quantity"],
                     $purchase_id
                 );
-
                 mysqli_stmt_execute($stmt);
             }
 
@@ -234,9 +279,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             exit;
 
         } catch (Exception $exception) {
-
             mysqli_rollback($conn);
-
             $error = $exception->getMessage();
         }
     }
