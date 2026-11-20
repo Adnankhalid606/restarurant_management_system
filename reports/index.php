@@ -125,30 +125,90 @@ require_once "../includes/header.php";
         </div>
     </div>
 
-    <!-- 5. Profit & Loss Statement -->
-    <div class="col-12 col-md-6 col-xl-8">
-        <div class="pos-card h-100 report-card-hub border-primary">
+    <!-- 5. Consolidated Operating Statement -->
+    <div class="col-12 col-md-6 col-xl-4">
+        <div class="pos-card h-100 report-card-hub">
             <div class="pos-card-body p-4 d-flex flex-column justify-content-between">
                 <div>
                     <div class="d-flex align-items-center justify-content-between mb-3">
-                        <div class="report-icon-box bg-primary text-white">
+                        <div class="report-icon-box bg-secondary text-white">
                             <i class="bi bi-file-earmark-spreadsheet"></i>
                         </div>
-                        <span class="badge bg-primary text-white">Executive Financial Statement</span>
+                        <span class="badge bg-secondary text-white">Legacy Operating P&amp;L</span>
                     </div>
-                    <h5 class="fw-bold text-dark mb-2">Consolidated Profit &amp; Loss (P&amp;L)</h5>
+                    <h5 class="fw-bold text-dark mb-2">Operating Summary (Cash COGS)</h5>
                     <p class="text-muted small mb-4">
-                        Master financial reconciliation reconciling total sales revenue against cost of goods sold (purchases), operational overheads (expenses), and disbursed staff compensation (salaries) to derive true Net Operating Profit/Loss.
+                        Original financial statement reconciling completed sales against raw material purchases, operating expenses &amp; paid salaries.
                     </p>
                 </div>
                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-3 border-top">
                     <span class="text-muted small">
                         <i class="bi bi-shield-check text-success me-1"></i>
-                        Reconciled across orders, purchases, expenses &amp; payroll
+                        Purchases as COGS model
                     </span>
-                    <a href="profit-loss.php" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1 px-4">
-                        <i class="bi bi-file-earmark-spreadsheet"></i>
-                        <span>View Profit &amp; Loss Statement</span>
+                    <a href="profit-loss.php" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1">
+                        <i class="bi bi-arrow-right"></i>
+                        <span>View Statement</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. Operational Cash Flow Summary -->
+    <div class="col-12 col-md-6 col-xl-4">
+        <div class="pos-card h-100 report-card-hub border-success">
+            <div class="pos-card-body p-4 d-flex flex-column justify-content-between">
+                <div>
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div class="report-icon-box bg-success text-white">
+                            <i class="bi bi-wallet2"></i>
+                        </div>
+                        <span class="badge bg-success text-white">Cash Basis</span>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-2">Operational Cash Flow Summary</h5>
+                    <p class="text-muted small mb-4">
+                        Audited liquidity statement tracking verified cash inflows from settled guest bills against settled supplier disbursements, paid payroll &amp; expenses.
+                    </p>
+                </div>
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-3 border-top">
+                    <span class="text-muted small">
+                        <i class="bi bi-shield-check text-success me-1"></i>
+                        Actual settlements only
+                    </span>
+                    <a href="cash-summary.php" class="btn btn-success btn-sm d-inline-flex align-items-center gap-1">
+                        <i class="bi bi-wallet2"></i>
+                        <span>View Cash Summary</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 7. Accrual Profit & Loss Statement -->
+    <div class="col-12 col-md-6 col-xl-4">
+        <div class="pos-card h-100 report-card-hub border-primary">
+            <div class="pos-card-body p-4 d-flex flex-column justify-content-between">
+                <div>
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div class="report-icon-box bg-primary text-white">
+                            <i class="bi bi-file-earmark-ruled"></i>
+                        </div>
+                        <span class="badge bg-primary text-white">Accrual Financial P&amp;L</span>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-2">Profit &amp; Loss (Accrual)</h5>
+                    <p class="text-muted small mb-4">
+                        Multi-step financial statement matching earned sales revenue against recipe-derived inventory consumption (COGS), inventory adjustments, and accrued payroll.
+                    </p>
+                </div>
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-3 border-top">
+                    <span class="text-muted small">
+                        <i class="bi bi-shield-check text-success me-1"></i>
+                        Moving Average COGS model
+                    </span>
+                    <a href="profit-loss-accrual.php" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1">
+                        <i class="bi bi-file-earmark-ruled"></i>
+                        <span>View Accrual P&amp;L</span>
                     </a>
                 </div>
             </div>

@@ -44,13 +44,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     $name = trim($_POST["name"] ?? "");
     $unit = trim($_POST["unit"] ?? "");
-    $current_stock = (float) ($_POST["current_stock"] ?? 0);
     $minimum_stock = (float) ($_POST["minimum_stock"] ?? 0);
 
+    // Physical current_stock cannot be silently overwritten here.
+    // Stock mutations must go through purchase receipts or traceable manual adjustments.
     $sql = "UPDATE raw_materials
             SET name = ?,
                 unit = ?,
-                current_stock = ?,
                 minimum_stock = ?
             WHERE id = ?";
 
@@ -58,16 +58,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     mysqli_stmt_bind_param(
         $stmt,
-        "ssddi",
+        "ssdi",
         $name,
         $unit,
-        $current_stock,
         $minimum_stock,
         $id
     );
 
     mysqli_stmt_execute($stmt);
 
+    $_SESSION["flash_success"] = "Raw material details updated successfully.";
     header("Location: materials.php");
     exit;
 }
@@ -140,22 +140,20 @@ require_once "../includes/header.php";
                     </div>
 
                     <div class="row g-3 mb-4">
-                        <!-- Current Stock -->
+                        <!-- Current Stock (Read-Only Audit Display) -->
                         <div class="col-12 col-sm-6">
-                            <label for="currentStock" class="form-label pos-form-label">
-                                Current Stock On Hand <span class="text-danger">*</span>
+                            <label class="form-label pos-form-label">
+                                Current Stock On Hand
                             </label>
                             <input
-                                type="number"
-                                class="form-control pos-form-control py-2"
-                                id="currentStock"
-                                name="current_stock"
-                                step="0.001"
-                                min="0"
-                                value="<?php echo htmlspecialchars($material["current_stock"], ENT_QUOTES, 'UTF-8'); ?>"
-                                required
+                                type="text"
+                                class="form-control pos-form-control py-2 bg-light text-muted"
+                                value="<?php echo number_format((float)$material["current_stock"], 3) . ' ' . htmlspecialchars($material["unit"], ENT_QUOTES, 'UTF-8'); ?>"
+                                readonly
                             >
-                            <div class="form-text text-muted small">Physical inventory quantity.</div>
+                            <div class="form-text text-muted small">
+                                Managed via <a href="add-transaction.php?material_id=<?php echo $id; ?>">traceable adjustments</a> &amp; purchases.
+                            </div>
                         </div>
 
                         <!-- Minimum Stock -->

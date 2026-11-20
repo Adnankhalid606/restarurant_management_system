@@ -99,10 +99,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
 
 
-        // Mark paid
-
+        // Mark paid with settlement timestamp
         $sql = "UPDATE purchases
-                SET payment_status = 'paid'
+                SET payment_status = 'paid',
+                    paid_at = NOW()
                 WHERE id = ?";
 
         $stmt = mysqli_prepare($conn, $sql);

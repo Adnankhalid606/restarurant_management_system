@@ -160,16 +160,30 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
 
     // Validate status
-
     $allowed_statuses = [
         "pending",
         "preparing",
         "ready",
+        "completed",
         "cancelled"
     ];
 
-    if (!in_array($status, $allowed_statuses)) {
+    if (!in_array($status, $allowed_statuses, true)) {
         die("Invalid status.");
+    }
+
+    // Integrity Safeguard: A completed order cannot be cancelled through ordinary editing
+    if ($order["status"] === "completed" && $status === "cancelled") {
+        die("Security Notice: Completed orders cannot be cancelled. Kitchen fulfillment and inventory consumption have already been finalized.");
+    }
+
+    // Integrity Safeguard: An order with a paid bill cannot be cancelled
+    if ($status === "cancelled") {
+        $check_bill = mysqli_query($conn, "SELECT id, payment_status FROM bills WHERE order_id = " . (int)$id . " LIMIT 1");
+        $b_row = mysqli_fetch_assoc($check_bill);
+        if ($b_row && $b_row["payment_status"] === "paid") {
+            die("Security Notice: Cannot cancel Order #$id because an associated paid invoice exists.");
+        }
     }
 
 
@@ -461,21 +475,27 @@ require_once "../includes/header.php";
                     <!-- Status -->
                     <div class="mb-3">
                         <label for="orderStatus" class="form-label pos-form-label">Order Status <span class="text-danger">*</span></label>
-                        <select name="status" id="orderStatus" class="form-select pos-form-control" required>
-                            <option value="pending" <?php if ($order["status"] === "pending") echo "selected"; ?>>
-                                Pending
-                            </option>
-                            <option value="preparing" <?php if ($order["status"] === "preparing") echo "selected"; ?>>
-                                Preparing
-                            </option>
-                            <option value="ready" <?php if ($order["status"] === "ready") echo "selected"; ?>>
-                                Ready
-                            </option>
-                            <option value="cancelled" <?php if ($order["status"] === "cancelled") echo "selected"; ?>>
-                                Cancelled
-                            </option>
-                        </select>
-                        <small class="text-muted d-block mt-1">Cancelling an order automatically releases any occupied dining table.</small>
+                        <?php if ($order["status"] === "completed") { ?>
+                            <input type="hidden" name="status" value="completed">
+                            <input type="text" class="form-control pos-form-control bg-light text-muted" value="Completed (Locked)" readonly>
+                            <small class="text-muted d-block mt-1">Completed orders are finalized for kitchen fulfillment and financial accounting.</small>
+                        <?php } else { ?>
+                            <select name="status" id="orderStatus" class="form-select pos-form-control" required>
+                                <option value="pending" <?php if ($order["status"] === "pending") echo "selected"; ?>>
+                                    Pending
+                                </option>
+                                <option value="preparing" <?php if ($order["status"] === "preparing") echo "selected"; ?>>
+                                    Preparing
+                                </option>
+                                <option value="ready" <?php if ($order["status"] === "ready") echo "selected"; ?>>
+                                    Ready
+                                </option>
+                                <option value="cancelled" <?php if ($order["status"] === "cancelled") echo "selected"; ?>>
+                                    Cancelled
+                                </option>
+                            </select>
+                            <small class="text-muted d-block mt-1">Cancelling an order automatically releases any occupied dining table.</small>
+                        <?php } ?>
                     </div>
 
                     <!-- Readonly Order Summary Card -->

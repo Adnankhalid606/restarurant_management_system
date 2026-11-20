@@ -81,8 +81,12 @@ CREATE TABLE `inventory_transactions` (
   `raw_material_id` int(11) NOT NULL,
   `type` enum('purchase','consumption','adjustment') NOT NULL,
   `quantity` decimal(10,3) NOT NULL,
+  `unit_cost` decimal(12,4) NOT NULL DEFAULT 0.0000,
+  `total_cost` decimal(12,2) NOT NULL DEFAULT 0.00,
   `reference_type` varchar(50) DEFAULT NULL,
   `reference_id` int(11) DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `notes` varchar(255) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -146,6 +150,7 @@ CREATE TABLE `purchases` (
   `supplier_id` int(11) NOT NULL,
   `total_amount` decimal(10,2) NOT NULL DEFAULT 0.00,
   `payment_status` enum('unpaid','partial','paid') NOT NULL DEFAULT 'unpaid',
+  `paid_at` datetime DEFAULT NULL,
   `purchase_date` date NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -177,6 +182,7 @@ CREATE TABLE `raw_materials` (
   `unit` varchar(20) NOT NULL,
   `current_stock` decimal(10,3) NOT NULL DEFAULT 0.000,
   `minimum_stock` decimal(10,3) NOT NULL DEFAULT 0.000,
+  `current_unit_cost` decimal(12,4) NOT NULL DEFAULT 0.0000,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -250,6 +256,7 @@ CREATE TABLE `salaries` (
   `salary_type` enum('daily','monthly') NOT NULL,
   `salary_date` date NOT NULL,
   `payment_status` enum('unpaid','paid') DEFAULT 'unpaid',
+  `disbursed_at` datetime DEFAULT NULL,
   `description` varchar(255) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

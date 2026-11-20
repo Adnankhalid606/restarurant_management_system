@@ -23,7 +23,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $raw_material_id = isset($_POST["raw_material_id"]) ? (int) $_POST["raw_material_id"] : 0;
     $type = trim($_POST["type"] ?? "");
     $quantity_raw = trim($_POST["quantity"] ?? "");
+    $notes = trim($_POST["notes"] ?? "");
+    $acting_user_id = (int) ($_SESSION["user_id"] ?? 0);
     $valid_types = ["purchase", "adjustment_in", "consumption", "adjustment_out"];
+
+    $posted_material_id = $raw_material_id;
+    $posted_type = $type;
+    $posted_qty = $quantity_raw;
+    $posted_notes = $notes;
 
     if ($raw_material_id <= 0) {
         $error = "Please select a valid raw material.";
@@ -37,8 +44,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         mysqli_begin_transaction($conn);
 
         try {
-            // 1. Fetch and lock raw material to check stock
-            $mat_stmt = mysqli_prepare($conn, "SELECT id, name, unit, current_stock FROM raw_materials WHERE id = ? FOR UPDATE");
+            // 1. Fetch and lock raw material to check stock and unit cost
+            $mat_stmt = mysqli_prepare($conn, "SELECT id, name, unit, current_stock, current_unit_cost FROM raw_materials WHERE id = ? FOR UPDATE");
             mysqli_stmt_bind_param($mat_stmt, "i", $raw_material_id);
             mysqli_stmt_execute($mat_stmt);
             $material = mysqli_fetch_assoc(mysqli_stmt_get_result($mat_stmt));
@@ -48,6 +55,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
 
             $current_stock = (float) $material["current_stock"];
+            $unit_cost = (float) ($material["current_unit_cost"] ?? 0);
+            $total_cost = round($quantity * $unit_cost, 2);
 
             // 2. For deductions, verify sufficient stock is available
             if ($type === "consumption" || $type === "adjustment_out") {
@@ -56,13 +65,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 }
             }
 
-            // 3. Create inventory transaction
+            // Map frontend type to database enum ('purchase','consumption','adjustment')
+            $db_type = ($type === "adjustment_in" || $type === "adjustment_out") ? "adjustment" : $type;
+            $default_note = ($type === "adjustment_out") ? "Manual stock deduction / spoilage" : "Manual stock adjustment";
+            $final_notes = !empty($notes) ? $notes : $default_note;
+
+            // 3. Create inventory transaction with cost snapshot, user traceability and notes
             $sql = "INSERT INTO inventory_transactions
-                    (raw_material_id, type, quantity)
-                    VALUES (?, ?, ?)";
+                    (raw_material_id, type, quantity, unit_cost, total_cost, created_by, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)";
 
             $stmt = mysqli_prepare($conn, $sql);
-            mysqli_stmt_bind_param($stmt, "isd", $raw_material_id, $type, $quantity);
+            mysqli_stmt_bind_param($stmt, "isdddss", $raw_material_id, $db_type, $quantity, $unit_cost, $total_cost, $acting_user_id, $final_notes);
 
             if (!mysqli_stmt_execute($stmt)) {
                 throw new Exception("Failed to create inventory transaction.");
@@ -96,6 +110,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
     }
 }
+
+$posted_notes = $posted_notes ?? "";
 
 $page_title = "Record Stock Transaction";
 $active_menu = "inventory";
@@ -215,6 +231,23 @@ $posted_qty = $_POST["quantity"] ?? "";
                             <span class="input-group-text bg-light text-muted" id="unitLabel">Units</span>
                         </div>
                         <div class="form-text text-muted small">Amount to add or subtract based on chosen transaction type.</div>
+                    </div>
+
+                    <!-- Notes / Reason -->
+                    <div class="mb-4">
+                        <label for="notesInput" class="form-label pos-form-label">
+                            Audit Reason / Notes
+                        </label>
+                        <input
+                            type="text"
+                            class="form-control pos-form-control py-2"
+                            id="notesInput"
+                            name="notes"
+                            maxlength="255"
+                            placeholder="e.g. Spoilage write-off, physical count reconciliation"
+                            value="<?php echo htmlspecialchars($posted_notes, ENT_QUOTES, 'UTF-8'); ?>"
+                        >
+                        <div class="form-text text-muted small">Provide context for financial audit and inventory reconciliation.</div>
                     </div>
 
                     <!-- Live Effect Explanatory Notice -->

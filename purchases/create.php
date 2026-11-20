@@ -38,8 +38,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     // Verify supplier selection
     if ($supplier_id <= 0) {
         $error = "Please select a valid supplier.";
-    } elseif (!in_array($payment_status, ["unpaid", "partial", "paid"], true)) {
-        $error = "Invalid payment status selected.";
+    } elseif (!in_array($payment_status, ["unpaid", "paid"], true)) {
+        $error = "Invalid payment status selected. Full settlement (paid) or credit invoice (unpaid) only.";
     } elseif (
         !is_array($raw_material_ids)
         || !is_array($quantities)
@@ -183,31 +183,41 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 throw new Exception("Total purchase amount exceeds maximum invoice limit.");
             }
 
+            $paid_at = ($payment_status === "paid") ? date("Y-m-d H:i:s") : null;
+            $creator_user_id = (int) ($_SESSION["user_id"] ?? 0);
+
             // Create purchase
             $sql = "INSERT INTO purchases
                     (
                         supplier_id,
                         total_amount,
                         payment_status,
+                        paid_at,
                         purchase_date
                     )
-                    VALUES (?, ?, ?, ?)";
+                    VALUES (?, ?, ?, ?, ?)";
 
             $stmt = mysqli_prepare($conn, $sql);
             mysqli_stmt_bind_param(
                 $stmt,
-                "idss",
+                "idsss",
                 $supplier_id,
                 $total_amount,
                 $payment_status,
+                $paid_at,
                 $purchase_date
             );
             mysqli_stmt_execute($stmt);
 
             $purchase_id = mysqli_insert_id($conn);
 
-            // Insert purchase items, increment stock, and record inventory transaction
+            // Insert purchase items, increment stock, recalculate MAC, and record inventory transaction
             foreach ($items as $item) {
+                $mat_id = (int) $item["raw_material_id"];
+                $qty = (float) $item["quantity"];
+                $unit_price = (float) $item["unit_price"];
+                $line_subtotal = (float) $item["subtotal"];
+
                 $sql = "INSERT INTO purchase_items
                         (
                             purchase_id,
@@ -223,52 +233,86 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     $stmt,
                     "iiddd",
                     $purchase_id,
-                    $item["raw_material_id"],
-                    $item["quantity"],
-                    $item["unit_price"],
-                    $item["subtotal"]
+                    $mat_id,
+                    $qty,
+                    $unit_price,
+                    $line_subtotal
                 );
                 mysqli_stmt_execute($stmt);
 
-                // Increase stock
+                // Lock raw material row for atomic update of stock and moving average cost
+                $lock_stmt = mysqli_prepare($conn, "SELECT current_stock, current_unit_cost FROM raw_materials WHERE id = ? FOR UPDATE");
+                mysqli_stmt_bind_param($lock_stmt, "i", $mat_id);
+                mysqli_stmt_execute($lock_stmt);
+                $mat_row = mysqli_fetch_assoc(mysqli_stmt_get_result($lock_stmt));
+
+                $old_stock = (float) ($mat_row["current_stock"] ?? 0);
+                $old_avg_cost = (float) ($mat_row["current_unit_cost"] ?? 0);
+
+                // Moving Weighted Average Cost (MAC) formula:
+                // new_avg_cost = ((old_stock * old_avg_cost) + (qty * unit_price)) / (old_stock + qty)
+                // If old_stock <= 0 (zero or recovery), new average cost is the purchase unit price.
+                if ($old_stock <= 0) {
+                    $new_avg_cost = $unit_price;
+                } else {
+                    $new_total_val = ($old_stock * $old_avg_cost) + ($qty * $unit_price);
+                    $new_total_qty = $old_stock + $qty;
+                    $new_avg_cost = ($new_total_qty > 0) ? ($new_total_val / $new_total_qty) : $unit_price;
+                }
+                $new_avg_cost = round($new_avg_cost, 4);
+
+                // Increase stock and update moving average unit cost
                 $sql = "UPDATE raw_materials
-                        SET current_stock = current_stock + ?
+                        SET current_stock = current_stock + ?,
+                            current_unit_cost = ?
                         WHERE id = ?";
 
                 $stmt = mysqli_prepare($conn, $sql);
                 mysqli_stmt_bind_param(
                     $stmt,
-                    "di",
-                    $item["quantity"],
-                    $item["raw_material_id"]
+                    "ddi",
+                    $qty,
+                    $new_avg_cost,
+                    $mat_id
                 );
                 mysqli_stmt_execute($stmt);
 
-                // Create inventory transaction
+                // Create inventory transaction with cost snapshot and creator metadata
                 $sql = "INSERT INTO inventory_transactions
                         (
                             raw_material_id,
                             type,
                             quantity,
+                            unit_cost,
+                            total_cost,
                             reference_type,
-                            reference_id
+                            reference_id,
+                            created_by,
+                            notes
                         )
                         VALUES
                         (
                             ?,
                             'purchase',
                             ?,
+                            ?,
+                            ?,
                             'purchase',
-                            ?
+                            ?,
+                            ?,
+                            'Supplier PO receipt'
                         )";
 
                 $stmt = mysqli_prepare($conn, $sql);
                 mysqli_stmt_bind_param(
                     $stmt,
-                    "idi",
-                    $item["raw_material_id"],
-                    $item["quantity"],
-                    $purchase_id
+                    "idddii",
+                    $mat_id,
+                    $qty,
+                    $unit_price,
+                    $line_subtotal,
+                    $purchase_id,
+                    $creator_user_id
                 );
                 mysqli_stmt_execute($stmt);
             }
@@ -396,9 +440,8 @@ require_once "../includes/header.php";
                                     <i class="bi bi-wallet2 text-muted"></i>
                                 </span>
                                 <select name="payment_status" class="form-select pos-form-control border-start-0" required>
-                                    <option value="unpaid" <?php echo (isset($_POST["payment_status"]) && $_POST["payment_status"] === "unpaid") ? "selected" : ""; ?>>Unpaid</option>
-                                    <option value="partial" <?php echo (isset($_POST["payment_status"]) && $_POST["payment_status"] === "partial") ? "selected" : ""; ?>>Partial</option>
-                                    <option value="paid" <?php echo (isset($_POST["payment_status"]) && $_POST["payment_status"] === "paid") ? "selected" : ""; ?>>Paid</option>
+                                    <option value="unpaid" <?php echo (isset($_POST["payment_status"]) && $_POST["payment_status"] === "unpaid") ? "selected" : ""; ?>>Unpaid (Credit / Accounts Payable)</option>
+                                    <option value="paid" <?php echo (isset($_POST["payment_status"]) && $_POST["payment_status"] === "paid") ? "selected" : ""; ?>>Paid (Settled Immediately)</option>
                                 </select>
                             </div>
                         </div>

@@ -23,9 +23,9 @@ if ($salary_id <= 0) {
     exit;
 }
 
-// Check salary
+// Check salary and payment status
 $sql = "
-    SELECT id
+    SELECT id, payment_status, amount
     FROM salaries
     WHERE id = ?
 ";
@@ -35,9 +35,16 @@ mysqli_stmt_bind_param($stmt, "i", $salary_id);
 mysqli_stmt_execute($stmt);
 
 $result = mysqli_stmt_get_result($stmt);
+$salary = mysqli_fetch_assoc($result);
 
-if (mysqli_num_rows($result) === 0) {
+if (!$salary) {
     $_SESSION["error"] = "Record not found or invalid identifier.";
+    header("Location: index.php");
+    exit;
+}
+
+if ($salary["payment_status"] === "paid") {
+    $_SESSION["error"] = "Cannot delete a settled/paid salary record. Financial audit records are locked.";
     header("Location: index.php");
     exit;
 }

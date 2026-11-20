@@ -111,9 +111,10 @@ if (!function_exists('transitionKitchenOrderStatus')) {
                     }
                 }
 
-                // Check stock availability with row-level lock
+                // Check stock availability and capture moving average unit costs with row-level lock
+                $ingredient_costs = [];
                 foreach ($required_ingredients as $raw_material_id => $ingredient) {
-                    $sql = "SELECT name, current_stock FROM raw_materials WHERE id = ? FOR UPDATE";
+                    $sql = "SELECT name, current_stock, current_unit_cost FROM raw_materials WHERE id = ? FOR UPDATE";
                     $stmt = mysqli_prepare($conn, $sql);
                     mysqli_stmt_bind_param($stmt, 'i', $raw_material_id);
                     mysqli_stmt_execute($stmt);
@@ -127,11 +128,17 @@ if (!function_exists('transitionKitchenOrderStatus')) {
                     if ((float) $material['current_stock'] < $ingredient['quantity']) {
                         throw new Exception('Insufficient inventory stock for "' . $material['name'] . '" (Required: ' . $ingredient['quantity'] . ', Available: ' . (float)$material['current_stock'] . ').');
                     }
+
+                    $ingredient_costs[$raw_material_id] = (float) ($material['current_unit_cost'] ?? 0);
                 }
 
-                // Deduct inventory and record audit transactions
+                $acting_user_id = (int) ($_SESSION['user_id'] ?? 0);
+
+                // Deduct inventory and record audit transactions with cost snapshot
                 foreach ($required_ingredients as $raw_material_id => $ingredient) {
-                    $required_qty = $ingredient['quantity'];
+                    $required_qty = (float) $ingredient['quantity'];
+                    $unit_cost = (float) ($ingredient_costs[$raw_material_id] ?? 0);
+                    $total_cost = round($required_qty * $unit_cost, 2);
 
                     $sql = "UPDATE raw_materials SET current_stock = current_stock - ? WHERE id = ? AND current_stock >= ?";
                     $stmt = mysqli_prepare($conn, $sql);
@@ -142,10 +149,11 @@ if (!function_exists('transitionKitchenOrderStatus')) {
                         throw new Exception('Inventory stock deduction failed for material #' . $raw_material_id . '.');
                     }
 
-                    $sql = "INSERT INTO inventory_transactions (raw_material_id, type, quantity, reference_type, reference_id)
-                            VALUES (?, 'consumption', ?, 'order', ?)";
+                    $sql = "INSERT INTO inventory_transactions 
+                            (raw_material_id, type, quantity, unit_cost, total_cost, reference_type, reference_id, created_by, notes)
+                            VALUES (?, 'consumption', ?, ?, ?, 'order', ?, ?, 'Kitchen order completion')";
                     $stmt = mysqli_prepare($conn, $sql);
-                    mysqli_stmt_bind_param($stmt, 'idi', $raw_material_id, $required_qty, $order_id);
+                    mysqli_stmt_bind_param($stmt, 'idddiii', $raw_material_id, $required_qty, $unit_cost, $total_cost, $order_id, $acting_user_id);
                     mysqli_stmt_execute($stmt);
                 }
             }

@@ -45,6 +45,10 @@ require_once "../includes/header.php";
         <p class="page-header-subtitle">Kitchen ingredients inventory, stock quantities &amp; reorder thresholds</p>
     </div>
     <div class="d-flex align-items-center gap-2 flex-wrap">
+        <a href="opening-valuation.php" class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-1 shadow-sm">
+            <i class="bi bi-calculator"></i>
+            <span>Valuation Baseline</span>
+        </a>
         <a href="transactions.php" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1">
             <i class="bi bi-arrow-left-right"></i>
             <span>Transactions</span>

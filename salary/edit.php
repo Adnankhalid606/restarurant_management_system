@@ -138,9 +138,26 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $error = "Disbursement date is required.";
     }
 
+    // Check existing payment status lock
+    $is_already_paid = ($salary["payment_status"] === "paid");
+
+    if ($is_already_paid && $posted_payment_status === "unpaid") {
+        $error = "A settled/paid salary cannot be reverted back to unpaid status.";
+    }
+
+    if ($is_already_paid && round((float)$amount_str, 2) !== (float)$salary["amount"]) {
+        $error = "The amount of a settled/paid salary cannot be modified. Financial audit records are locked.";
+    }
+
     // Update salary if all validations pass
     if ($error === "") {
         $amount = round((float) $amount_str, 2);
+
+        // Manage disbursed_at timestamp
+        $disbursed_sql_part = "";
+        if (!$is_already_paid && $posted_payment_status === "paid") {
+            $disbursed_sql_part = ", disbursed_at = NOW()";
+        }
 
         $sql = "
             UPDATE salaries
@@ -151,6 +168,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 salary_date = ?,
                 payment_status = ?,
                 description = ?
+                $disbursed_sql_part
             WHERE id = ?
         ";
 

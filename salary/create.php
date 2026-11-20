@@ -104,6 +104,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if ($error === "") {
         $amount = round((float) $amount_str, 2);
 
+        $disbursed_at = ($posted_payment_status === "paid") ? date("Y-m-d H:i:s") : null;
+
         $sql = "
             INSERT INTO salaries
             (
@@ -112,21 +114,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 salary_type,
                 salary_date,
                 payment_status,
+                disbursed_at,
                 description
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         ";
 
         $stmt = mysqli_prepare($conn, $sql);
 
         mysqli_stmt_bind_param(
             $stmt,
-            "idssss",
+            "idsssss",
             $posted_user_id,
             $amount,
             $posted_salary_type,
             $posted_salary_date,
             $posted_payment_status,
+            $disbursed_at,
             $posted_description
         );
 
