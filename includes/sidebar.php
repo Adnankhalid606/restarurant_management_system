@@ -18,11 +18,29 @@ $script_name = $_SERVER['SCRIPT_NAME'] ?? '';
 $active_menu = $active_menu ?? '';
 
 function isItemActive($key, $script_name, $active_menu) {
+    // Exact script file name
+    $current_file = basename($script_name);
+
+    // Specific inventory sub-routes handling
+    if ($key === 'inventory_stock') {
+        $stock_files = ['materials.php', 'create-material.php', 'edit-material.php', 'delete-material.php', 'opening-valuation.php'];
+        return strpos($script_name, '/inventory/') !== false && in_array($current_file, $stock_files, true);
+    }
+
+    if ($key === 'inventory_uom') {
+        return strpos($script_name, '/inventory/') !== false && $current_file === 'uom.php';
+    }
+
+    if ($key === 'inventory_adjustments') {
+        $adjustment_files = ['transactions.php', 'add-transaction.php'];
+        return strpos($script_name, '/inventory/') !== false && in_array($current_file, $adjustment_files, true);
+    }
+
     if (!empty($active_menu) && $active_menu === $key) {
         return true;
     }
     if ($key === 'dashboard') {
-        return basename($script_name) === 'index.php' && strpos($script_name, '/', 1) === false;
+        return $current_file === 'index.php' && (strpos($script_name, '/restaurant_pos/index.php') !== false || substr_count($script_name, '/') <= 1);
     }
     return strpos($script_name, '/' . $key . '/') !== false;
 }
@@ -93,7 +111,7 @@ function isItemActive($key, $script_name, $active_menu) {
 
         <?php if ($role === "admin" || $role === "kitchen") { ?>
             <a href="<?php echo $base_path; ?>inventory/materials.php" 
-               class="sidebar-link <?php echo isItemActive('inventory', $script_name, $active_menu) ? 'active' : ''; ?>">
+               class="sidebar-link <?php echo isItemActive('inventory_stock', $script_name, $active_menu) ? 'active' : ''; ?>">
                 <i class="bi bi-box-seam"></i>
                 <span>Inventory Stock</span>
             </a>
@@ -106,8 +124,14 @@ function isItemActive($key, $script_name, $active_menu) {
         <?php } ?>
 
         <?php if ($role === "admin") { ?>
+            <a href="<?php echo $base_path; ?>inventory/uom.php" 
+               class="sidebar-link <?php echo isItemActive('inventory_uom', $script_name, $active_menu) ? 'active' : ''; ?>">
+                <i class="bi bi-rulers"></i>
+                <span>Units (UOM)</span>
+            </a>
+
             <a href="<?php echo $base_path; ?>inventory/transactions.php" 
-               class="sidebar-link <?php echo (strpos($script_name, 'transactions.php') !== false) ? 'active' : ''; ?>">
+               class="sidebar-link <?php echo isItemActive('inventory_adjustments', $script_name, $active_menu) ? 'active' : ''; ?>">
                 <i class="bi bi-arrow-left-right"></i>
                 <span>Stock Adjustments</span>
             </a>

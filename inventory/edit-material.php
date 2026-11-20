@@ -36,6 +36,8 @@ if (!$material) {
     exit;
 }
 
+$error = "";
+
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     if (!verify_csrf_token()) {
@@ -43,33 +45,82 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 
     $name = trim($_POST["name"] ?? "");
-    $unit = trim($_POST["unit"] ?? "");
-    $minimum_stock = (float) ($_POST["minimum_stock"] ?? 0);
+    $unit_id = (int) ($_POST["unit_id"] ?? 0);
+    $minimum_stock_raw = trim($_POST["minimum_stock"] ?? "0");
 
-    // Physical current_stock cannot be silently overwritten here.
-    // Stock mutations must go through purchase receipts or traceable manual adjustments.
-    $sql = "UPDATE raw_materials
-            SET name = ?,
-                unit = ?,
-                minimum_stock = ?
-            WHERE id = ?";
+    if ($name === "") {
+        $error = "Material name is required.";
+    } elseif ($unit_id <= 0) {
+        $error = "Please select a valid unit of measure.";
+    } else {
+        // Fetch new unit of measure
+        $uom_stmt = mysqli_prepare($conn, "SELECT id, name, symbol, allow_decimal, status FROM units_of_measure WHERE id = ?");
+        mysqli_stmt_bind_param($uom_stmt, "i", $unit_id);
+        mysqli_stmt_execute($uom_stmt);
+        $new_uom = mysqli_fetch_assoc(mysqli_stmt_get_result($uom_stmt));
 
-    $stmt = mysqli_prepare($conn, $sql);
+        if (!$new_uom || ($new_uom["status"] !== "active" && (int)$new_uom["id"] !== (int)$material["unit_id"])) {
+            $error = "Selected unit of measure is inactive or invalid.";
+        } else {
+            $allow_decimal = (int) $new_uom["allow_decimal"];
+            $unit_symbol = $new_uom["symbol"];
+            $current_stock_val = (float) $material["current_stock"];
 
-    mysqli_stmt_bind_param(
-        $stmt,
-        "ssdi",
-        $name,
-        $unit,
-        $minimum_stock,
-        $id
-    );
+            // If switching to a whole-number UOM, ensure current physical stock has no fractional part
+            if ($allow_decimal === 0 && (floor($current_stock_val) != $current_stock_val)) {
+                $error = "Cannot change unit to " . htmlspecialchars($new_uom["name"], ENT_QUOTES, 'UTF-8') . " ($unit_symbol): Current stock on hand (" . number_format($current_stock_val, 3) . ") contains a fractional amount. Reconcile stock to a whole number before changing unit policy.";
+            } elseif (!is_numeric($minimum_stock_raw) || (float)$minimum_stock_raw < 0) {
+                $error = "Minimum stock threshold must be a non-negative number.";
+            } elseif ($allow_decimal === 0 && (strpos($minimum_stock_raw, '.') !== false && rtrim(explode('.', $minimum_stock_raw)[1], '0') !== '')) {
+                $error = "Fractional quantities are not allowed for minimum stock threshold for " . htmlspecialchars($new_uom["name"], ENT_QUOTES, 'UTF-8') . " ($unit_symbol).";
+            } else {
+                $minimum_stock = (float) $minimum_stock_raw;
 
-    mysqli_stmt_execute($stmt);
+                // Physical current_stock cannot be silently overwritten here.
+                // Stock mutations must go through purchase receipts or traceable manual adjustments.
+                $sql = "UPDATE raw_materials
+                        SET name = ?,
+                            unit = ?,
+                            unit_id = ?,
+                            minimum_stock = ?
+                        WHERE id = ?";
 
-    $_SESSION["flash_success"] = "Raw material details updated successfully.";
-    header("Location: materials.php");
-    exit;
+                $stmt = mysqli_prepare($conn, $sql);
+                mysqli_stmt_bind_param(
+                    $stmt,
+                    "ssidi",
+                    $name,
+                    $unit_symbol,
+                    $unit_id,
+                    $minimum_stock,
+                    $id
+                );
+
+                if (mysqli_stmt_execute($stmt)) {
+                    $_SESSION["flash_success"] = "Raw material details updated successfully.";
+                    header("Location: materials.php");
+                    exit;
+                } else {
+                    $error = "Failed to update material: " . mysqli_error($conn);
+                }
+            }
+        }
+    }
+}
+
+// Fetch all units of measure (active plus the currently assigned unit even if inactive)
+$uom_list_stmt = mysqli_prepare($conn, "
+    SELECT id, name, symbol, allow_decimal, status 
+    FROM units_of_measure 
+    WHERE status = 'active' OR id = ? 
+    ORDER BY name ASC
+");
+mysqli_stmt_bind_param($uom_list_stmt, "i", $material["unit_id"]);
+mysqli_stmt_execute($uom_list_stmt);
+$uom_list_res = mysqli_stmt_get_result($uom_list_stmt);
+$available_uoms = [];
+while ($u_row = mysqli_fetch_assoc($uom_list_res)) {
+    $available_uoms[] = $u_row;
 }
 
 $page_title = "Edit Raw Material #" . $id;
@@ -91,6 +142,13 @@ require_once "../includes/header.php";
         </a>
     </div>
 </div>
+
+<?php if (!empty($error)) { ?>
+    <div class="alert alert-danger border py-2 px-3 mb-4 small d-flex align-items-center gap-2">
+        <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 text-danger"></i>
+        <div><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></div>
+    </div>
+<?php } ?>
 
 <div class="row justify-content-center">
     <div class="col-12 col-md-8 col-lg-6">
@@ -130,13 +188,18 @@ require_once "../includes/header.php";
                         <label for="materialUnit" class="form-label pos-form-label">
                             Standard Measurement Unit <span class="text-danger">*</span>
                         </label>
-                        <select name="unit" id="materialUnit" class="form-select pos-form-control py-2" required>
-                            <option value="kg" <?php if ($material["unit"] === "kg") echo "selected"; ?>>Kilogram (kg)</option>
-                            <option value="liter" <?php if ($material["unit"] === "liter") echo "selected"; ?>>Liter (l)</option>
-                            <option value="gram" <?php if ($material["unit"] === "gram") echo "selected"; ?>>Gram (g)</option>
-                            <option value="piece" <?php if ($material["unit"] === "piece") echo "selected"; ?>>Piece (pcs)</option>
+                        <select name="unit_id" id="materialUnit" class="form-select pos-form-control py-2" required>
+                            <?php foreach ($available_uoms as $u) { 
+                                $is_selected = ((int)$material["unit_id"] === (int)$u["id"]);
+                                $is_inactive = ($u["status"] === "inactive");
+                                $dec_label = (int)$u["allow_decimal"] === 1 ? 'fractional' : 'whole';
+                            ?>
+                                <option value="<?php echo $u['id']; ?>" <?php if ($is_selected) echo "selected"; ?>>
+                                    <?php echo htmlspecialchars($u["name"] . " (" . $u["symbol"] . ") - " . $dec_label . ($is_inactive ? ' [Inactive]' : ''), ENT_QUOTES, 'UTF-8'); ?>
+                                </option>
+                            <?php } ?>
                         </select>
-                        <div class="form-text text-muted small">Unit applies to recipe portions and stock tracking.</div>
+                        <div class="form-text text-muted small">Unit of Measure loaded from database. Applies to recipe portions and stock tracking.</div>
                     </div>
 
                     <div class="row g-3 mb-4">

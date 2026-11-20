@@ -180,10 +180,27 @@ CREATE TABLE `raw_materials` (
   `id` int(11) NOT NULL,
   `name` varchar(150) NOT NULL,
   `unit` varchar(20) NOT NULL,
+  `unit_id` int(11) NOT NULL,
   `current_stock` decimal(10,3) NOT NULL DEFAULT 0.000,
   `minimum_stock` decimal(10,3) NOT NULL DEFAULT 0.000,
   `current_unit_cost` decimal(12,4) NOT NULL DEFAULT 0.0000,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `units_of_measure`
+--
+
+CREATE TABLE `units_of_measure` (
+  `id` int(11) NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `symbol` varchar(20) NOT NULL,
+  `allow_decimal` tinyint(1) NOT NULL DEFAULT 1,
+  `status` enum('active','inactive') NOT NULL DEFAULT 'active',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -375,7 +392,17 @@ ALTER TABLE `purchase_items`
 -- Indexes for table `raw_materials`
 --
 ALTER TABLE `raw_materials`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_raw_materials_unit_id` (`unit_id`);
+
+--
+-- Indexes for table `units_of_measure`
+--
+ALTER TABLE `units_of_measure`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uk_uom_name` (`name`),
+  ADD UNIQUE KEY `uk_uom_symbol` (`symbol`),
+  ADD KEY `idx_uom_status` (`status`);
 
 --
 -- Indexes for table `recipes`
@@ -577,6 +604,12 @@ ALTER TABLE `purchases`
 ALTER TABLE `purchase_items`
   ADD CONSTRAINT `purchase_items_ibfk_1` FOREIGN KEY (`purchase_id`) REFERENCES `purchases` (`id`),
   ADD CONSTRAINT `purchase_items_ibfk_2` FOREIGN KEY (`raw_material_id`) REFERENCES `raw_materials` (`id`);
+
+--
+-- Constraints for table `raw_materials`
+--
+ALTER TABLE `raw_materials`
+  ADD CONSTRAINT `fk_raw_materials_unit_id` FOREIGN KEY (`unit_id`) REFERENCES `units_of_measure` (`id`) ON UPDATE CASCADE;
 
 --
 -- Constraints for table `recipes`

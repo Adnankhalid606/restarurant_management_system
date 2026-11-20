@@ -111,10 +111,13 @@ if (!function_exists('transitionKitchenOrderStatus')) {
                     }
                 }
 
-                // Check stock availability and capture moving average unit costs with row-level lock
+                // Check stock availability, capture moving average unit costs, and validate UOM compliance with row-level lock
                 $ingredient_costs = [];
                 foreach ($required_ingredients as $raw_material_id => $ingredient) {
-                    $sql = "SELECT name, current_stock, current_unit_cost FROM raw_materials WHERE id = ? FOR UPDATE";
+                    $sql = "SELECT rm.name, rm.current_stock, rm.current_unit_cost, uom.name AS uom_name, uom.symbol AS uom_symbol, uom.allow_decimal 
+                            FROM raw_materials rm
+                            LEFT JOIN units_of_measure uom ON rm.unit_id = uom.id
+                            WHERE rm.id = ? FOR UPDATE";
                     $stmt = mysqli_prepare($conn, $sql);
                     mysqli_stmt_bind_param($stmt, 'i', $raw_material_id);
                     mysqli_stmt_execute($stmt);
@@ -125,8 +128,16 @@ if (!function_exists('transitionKitchenOrderStatus')) {
                         throw new Exception('Raw material #' . $raw_material_id . ' not found in catalog.');
                     }
 
-                    if ((float) $material['current_stock'] < $ingredient['quantity']) {
-                        throw new Exception('Insufficient inventory stock for "' . $material['name'] . '" (Required: ' . $ingredient['quantity'] . ', Available: ' . (float)$material['current_stock'] . ').');
+                    $allow_decimal = (int) ($material['allow_decimal'] ?? 1);
+                    $req_qty = (float) $ingredient['quantity'];
+
+                    // Enforce UOM decimal rule on kitchen consumption
+                    if ($allow_decimal === 0 && (floor($req_qty) != $req_qty)) {
+                        throw new Exception('Fractional recipe consumption is invalid for whole-number item "' . $material['name'] . '" (' . $material['uom_symbol'] . '). Quantity: ' . $req_qty);
+                    }
+
+                    if ((float) $material['current_stock'] < $req_qty) {
+                        throw new Exception('Insufficient inventory stock for "' . $material['name'] . '" (Required: ' . $req_qty . ', Available: ' . (float)$material['current_stock'] . ').');
                     }
 
                     $ingredient_costs[$raw_material_id] = (float) ($material['current_unit_cost'] ?? 0);

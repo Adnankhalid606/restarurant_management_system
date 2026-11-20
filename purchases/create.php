@@ -106,6 +106,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 break;
             }
 
+            // UOM Database Validation
+            $uom_check = validateMaterialQuantity($conn, $mat_id, $qty_str, "Row #{$row_num} quantity");
+            if (!$uom_check["valid"]) {
+                $error = $uom_check["error"];
+                break;
+            }
+            $qty_float = $uom_check["quantity"];
+
             // 3. Unit Price validation (raw input string check)
             $price_raw = $unit_prices[$index] ?? null;
             if ($price_raw === null || is_array($price_raw) || !is_scalar($price_raw)) {

@@ -55,12 +55,17 @@ $sql = "SELECT
             purchase_items.unit_price,
             purchase_items.subtotal,
             raw_materials.name AS material_name,
-            raw_materials.unit
+            raw_materials.unit,
+            uom.symbol AS uom_symbol,
+            uom.allow_decimal
 
         FROM purchase_items
 
         JOIN raw_materials
             ON purchase_items.raw_material_id = raw_materials.id
+
+        LEFT JOIN units_of_measure uom
+            ON raw_materials.unit_id = uom.id
 
         WHERE purchase_items.purchase_id = ?";
 
@@ -224,7 +229,8 @@ require_once "../includes/header.php";
                             <?php 
                             $idx = 1;
                             foreach ($items_list as $item) { 
-                                $qty_display = rtrim(rtrim(number_format((float)$item["quantity"], 3), '0'), '.');
+                                $unit_label = $item["uom_symbol"] ?? $item["unit"];
+                                $qty_display = formatQuantityUom($item["quantity"], $item["allow_decimal"] ?? 1);
                                 $unit_price_val = (float)($item["unit_price"] ?? 0);
                                 $subtotal_val = (float)($item["subtotal"] ?? 0);
                             ?>
@@ -245,7 +251,7 @@ require_once "../includes/header.php";
                                     </td>
                                     <td class="text-end font-monospace">
                                         <strong><?php echo htmlspecialchars($qty_display); ?></strong>
-                                        <span class="text-muted small ms-1"><?php echo htmlspecialchars($item["unit"]); ?></span>
+                                        <span class="text-muted small ms-1"><?php echo htmlspecialchars($unit_label); ?></span>
                                     </td>
                                     <td class="text-end font-monospace text-muted">
                                         Rs. <?php echo number_format($unit_price_val, 2); ?>

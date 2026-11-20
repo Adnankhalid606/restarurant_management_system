@@ -5,9 +5,10 @@ require_once "../includes/role.php";
 
 requireRole(["admin", "kitchen"]);
 
-$sql = "SELECT *
-        FROM raw_materials
-        ORDER BY id DESC";
+$sql = "SELECT rm.*, uom.name AS uom_name, uom.symbol AS uom_symbol, uom.allow_decimal
+        FROM raw_materials rm
+        LEFT JOIN units_of_measure uom ON rm.unit_id = uom.id
+        ORDER BY rm.id DESC";
 
 $result = mysqli_query($conn, $sql);
 
@@ -45,6 +46,12 @@ require_once "../includes/header.php";
         <p class="page-header-subtitle">Kitchen ingredients inventory, stock quantities &amp; reorder thresholds</p>
     </div>
     <div class="d-flex align-items-center gap-2 flex-wrap">
+        <?php if (($_SESSION['role'] ?? '') === 'admin') { ?>
+            <a href="uom.php" class="btn btn-outline-dark btn-sm d-inline-flex align-items-center gap-1 shadow-sm">
+                <i class="bi bi-rulers"></i>
+                <span>Units (UOM)</span>
+            </a>
+        <?php } ?>
         <a href="opening-valuation.php" class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-1 shadow-sm">
             <i class="bi bi-calculator"></i>
             <span>Valuation Baseline</span>
@@ -213,7 +220,7 @@ require_once "../includes/header.php";
                         }
                     ?>
                         <tr class="material-row" 
-                            data-name="<?php echo htmlspecialchars(mb_strtolower($m['name'] . ' ' . $m['unit']), ENT_QUOTES, 'UTF-8'); ?>"
+                            data-name="<?php echo htmlspecialchars(mb_strtolower($m['name'] . ' ' . ($m['uom_symbol'] ?? $m['unit'])), ENT_QUOTES, 'UTF-8'); ?>"
                             data-status="<?php echo $filter_tag; ?>">
                             <td class="text-muted fw-semibold">#<?php echo $m["id"]; ?></td>
                             <td>
@@ -223,19 +230,19 @@ require_once "../includes/header.php";
                                 </div>
                             </td>
                             <td>
-                                <span class="badge bg-light text-dark border px-2 py-1 text-uppercase">
-                                    <?php echo htmlspecialchars($m["unit"], ENT_QUOTES, 'UTF-8'); ?>
+                                <span class="badge bg-light text-dark border px-2 py-1">
+                                    <?php echo htmlspecialchars($m["uom_symbol"] ?? $m["unit"], ENT_QUOTES, 'UTF-8'); ?>
                                 </span>
                             </td>
                             <td class="text-end">
                                 <span class="fw-bold fs-6 <?php echo ($current <= $min) ? 'text-danger' : 'text-dark'; ?>">
-                                    <?php echo htmlspecialchars($m["current_stock"], ENT_QUOTES, 'UTF-8'); ?>
+                                    <?php echo formatQuantityUom($m["current_stock"], $m["allow_decimal"] ?? 1); ?>
                                 </span>
-                                <span class="text-muted small"><?php echo htmlspecialchars($m["unit"], ENT_QUOTES, 'UTF-8'); ?></span>
+                                <span class="text-muted small"><?php echo htmlspecialchars($m["uom_symbol"] ?? $m["unit"], ENT_QUOTES, 'UTF-8'); ?></span>
                             </td>
                             <td class="text-end text-muted small">
-                                <?php echo htmlspecialchars($m["minimum_stock"], ENT_QUOTES, 'UTF-8'); ?>
-                                <?php echo htmlspecialchars($m["unit"], ENT_QUOTES, 'UTF-8'); ?>
+                                <?php echo formatQuantityUom($m["minimum_stock"], $m["allow_decimal"] ?? 1); ?>
+                                <?php echo htmlspecialchars($m["uom_symbol"] ?? $m["unit"], ENT_QUOTES, 'UTF-8'); ?>
                             </td>
                             <td>
                                 <span class="badge <?php echo $badge_class; ?> border text-capitalize px-2 py-1">

@@ -134,9 +134,12 @@ $materials_res = mysqli_query($conn, "
         rm.current_stock, 
         rm.minimum_stock, 
         rm.current_unit_cost,
+        uom.symbol AS uom_symbol,
+        uom.allow_decimal,
         (SELECT COUNT(*) FROM inventory_transactions it WHERE it.raw_material_id = rm.id AND it.type = 'purchase') AS purchase_tx_count,
         (SELECT COUNT(*) FROM inventory_transactions it WHERE it.raw_material_id = rm.id AND (it.reference_type = 'opening_valuation' OR it.notes = 'Opening MAC unit cost valuation baseline')) AS baseline_tx_count
     FROM raw_materials rm
+    LEFT JOIN units_of_measure uom ON rm.unit_id = uom.id
     ORDER BY rm.name ASC
 ");
 $materials = [];
@@ -242,10 +245,10 @@ require_once "../includes/header.php";
                                 <?php } ?>
                             </td>
                             <td>
-                                <span class="badge bg-light text-secondary border"><?php echo htmlspecialchars($m["unit"], ENT_QUOTES, 'UTF-8'); ?></span>
+                                <span class="badge bg-light text-secondary border"><?php echo htmlspecialchars($m["uom_symbol"] ?? $m["unit"], ENT_QUOTES, 'UTF-8'); ?></span>
                             </td>
                             <td class="text-end font-monospace">
-                                <?php echo number_format($stock, 3); ?>
+                                <?php echo formatQuantityUom($stock, $m["allow_decimal"] ?? 1); ?>
                             </td>
                             <td>
                                 <?php if ($is_locked) { ?>

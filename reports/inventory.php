@@ -7,13 +7,16 @@ requireRole(["admin"]);
 
 $sql = "
     SELECT
-        id,
-        name,
-        unit,
-        current_stock,
-        minimum_stock
-    FROM raw_materials
-    ORDER BY name ASC
+        rm.id,
+        rm.name,
+        rm.unit,
+        rm.current_stock,
+        rm.minimum_stock,
+        uom.symbol AS uom_symbol,
+        uom.allow_decimal
+    FROM raw_materials rm
+    LEFT JOIN units_of_measure uom ON rm.unit_id = uom.id
+    ORDER BY rm.name ASC
 ";
 
 $result = mysqli_query($conn, $sql);
@@ -179,16 +182,16 @@ require_once "../includes/header.php";
                                 </td>
                                 <td>
                                     <span class="badge bg-light text-secondary border">
-                                        <?php echo htmlspecialchars($row["unit"]); ?>
+                                        <?php echo htmlspecialchars($row["uom_symbol"] ?? $row["unit"]); ?>
                                     </span>
                                 </td>
                                 <td class="text-end font-monospace">
                                     <strong class="<?php echo $is_low ? 'text-danger' : 'text-dark'; ?>">
-                                        <?php echo rtrim(rtrim(number_format((float)$row["current_stock"], 3), '0'), '.'); ?>
+                                        <?php echo formatQuantityUom($row["current_stock"], $row["allow_decimal"] ?? 1); ?>
                                     </strong>
                                 </td>
                                 <td class="text-end font-monospace text-muted">
-                                    <?php echo rtrim(rtrim(number_format((float)$row["minimum_stock"], 3), '0'), '.'); ?>
+                                    <?php echo formatQuantityUom($row["minimum_stock"], $row["allow_decimal"] ?? 1); ?>
                                 </td>
                                 <td class="text-center pe-3">
                                     <?php if ($is_low) { ?>

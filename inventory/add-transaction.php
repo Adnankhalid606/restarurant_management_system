@@ -36,34 +36,48 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $error = "Please select a valid raw material.";
     } elseif (!in_array($type, $valid_types, true)) {
         $error = "Invalid transaction type selected.";
-    } elseif (!is_numeric($quantity_raw) || (float) $quantity_raw <= 0) {
-        $error = "Transaction quantity must be strictly greater than zero.";
     } else {
-        $quantity = (float) $quantity_raw;
+        // Enforce centralized UOM quantity validation
+        $uom_check = validateMaterialQuantity($conn, $raw_material_id, $quantity_raw, "Transaction quantity");
+        if (!$uom_check["valid"]) {
+            $error = $uom_check["error"];
+        } else {
+            $quantity = $uom_check["quantity"];
 
-        mysqli_begin_transaction($conn);
+            mysqli_begin_transaction($conn);
 
-        try {
-            // 1. Fetch and lock raw material to check stock and unit cost
-            $mat_stmt = mysqli_prepare($conn, "SELECT id, name, unit, current_stock, current_unit_cost FROM raw_materials WHERE id = ? FOR UPDATE");
-            mysqli_stmt_bind_param($mat_stmt, "i", $raw_material_id);
-            mysqli_stmt_execute($mat_stmt);
-            $material = mysqli_fetch_assoc(mysqli_stmt_get_result($mat_stmt));
+            try {
+                // 1. Fetch and lock raw material to check stock and unit cost
+                $mat_stmt = mysqli_prepare($conn, "
+                    SELECT rm.id, rm.name, rm.unit, rm.current_stock, rm.current_unit_cost, uom.name AS uom_name, uom.symbol AS uom_symbol, uom.allow_decimal
+                    FROM raw_materials rm
+                    LEFT JOIN units_of_measure uom ON rm.unit_id = uom.id
+                    WHERE rm.id = ? 
+                    FOR UPDATE
+                ");
+                mysqli_stmt_bind_param($mat_stmt, "i", $raw_material_id);
+                mysqli_stmt_execute($mat_stmt);
+                $material = mysqli_fetch_assoc(mysqli_stmt_get_result($mat_stmt));
 
-            if (!$material) {
-                throw new Exception("Selected raw material does not exist.");
-            }
-
-            $current_stock = (float) $material["current_stock"];
-            $unit_cost = (float) ($material["current_unit_cost"] ?? 0);
-            $total_cost = round($quantity * $unit_cost, 2);
-
-            // 2. For deductions, verify sufficient stock is available
-            if ($type === "consumption" || $type === "adjustment_out") {
-                if ($quantity > $current_stock) {
-                    throw new Exception("Insufficient stock available. Current stock of " . $material["name"] . " is " . number_format($current_stock, 3) . " " . $material["unit"] . ".");
+                if (!$material) {
+                    throw new Exception("Selected raw material does not exist.");
                 }
-            }
+
+                $allow_decimal = (int) ($material["allow_decimal"] ?? 1);
+                if ($allow_decimal === 0 && floor($quantity) != $quantity) {
+                    throw new Exception("Fractional quantities are not allowed for " . $material["name"] . " (" . $material["unit"] . "). Please enter a whole number.");
+                }
+
+                $current_stock = (float) $material["current_stock"];
+                $unit_cost = (float) ($material["current_unit_cost"] ?? 0);
+                $total_cost = round($quantity * $unit_cost, 2);
+
+                // 2. For deductions, verify sufficient stock is available
+                if ($type === "consumption" || $type === "adjustment_out") {
+                    if ($quantity > $current_stock) {
+                        throw new Exception("Insufficient stock available. Current stock of " . $material["name"] . " is " . number_format($current_stock, 3) . " " . $material["unit"] . ".");
+                    }
+                }
 
             // Map frontend type to database enum ('purchase','consumption','adjustment')
             $db_type = ($type === "adjustment_in" || $type === "adjustment_out") ? "adjustment" : $type;
@@ -107,6 +121,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         } catch (Exception $e) {
             mysqli_rollback($conn);
             $error = $e->getMessage();
+        }
         }
     }
 }

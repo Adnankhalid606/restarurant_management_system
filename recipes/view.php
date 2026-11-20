@@ -51,12 +51,17 @@ if (!$recipe) {
 $sql = "SELECT
             recipe_items.quantity,
             raw_materials.name AS material_name,
-            raw_materials.unit
+            raw_materials.unit,
+            uom.symbol AS uom_symbol,
+            uom.allow_decimal
 
         FROM recipe_items
 
         JOIN raw_materials
             ON recipe_items.raw_material_id = raw_materials.id
+
+        LEFT JOIN units_of_measure uom
+            ON raw_materials.unit_id = uom.id
 
         WHERE recipe_items.recipe_id = ?";
 
@@ -213,7 +218,8 @@ require_once "../includes/header.php";
                                 <?php 
                                 $idx = 1;
                                 foreach ($ingredient_list as $item) { 
-                                    $qty_display = rtrim(rtrim(number_format((float)$item["quantity"], 3), '0'), '.');
+                                    $unit_label = $item["uom_symbol"] ?? $item["unit"];
+                                    $qty_display = formatQuantityUom($item["quantity"], $item["allow_decimal"] ?? 1);
                                 ?>
                                     <tr>
                                         <td class="ps-3 text-muted fw-semibold"><?php echo $idx++; ?></td>
@@ -235,13 +241,13 @@ require_once "../includes/header.php";
                                         </td>
                                         <td>
                                             <span class="recipe-unit-pill">
-                                                <?php echo htmlspecialchars($item["unit"]); ?>
+                                                <?php echo htmlspecialchars($unit_label); ?>
                                             </span>
                                         </td>
                                         <td class="pe-3">
                                             <span class="text-muted small d-inline-flex align-items-center gap-1">
                                                 <i class="bi bi-arrow-down-circle text-primary"></i>
-                                                Deducts <strong><?php echo htmlspecialchars($qty_display); ?> <?php echo htmlspecialchars($item["unit"]); ?></strong> / order
+                                                Deducts <strong><?php echo htmlspecialchars($qty_display); ?> <?php echo htmlspecialchars($unit_label); ?></strong> / order
                                             </span>
                                         </td>
                                     </tr>

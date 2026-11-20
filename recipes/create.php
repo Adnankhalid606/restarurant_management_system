@@ -66,9 +66,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 // Create recipe items
                 for ($i = 0; $i < count($raw_material_ids); $i++) {
                     $raw_material_id = (int) $raw_material_ids[$i];
-                    $quantity = (float) $quantities[$i];
+                    $quantity_raw = $quantities[$i] ?? 0;
 
-                    if ($raw_material_id > 0 && $quantity > 0) {
+                    if ($raw_material_id > 0) {
+                        // Enforce UOM decimal policy
+                        $uom_check = validateMaterialQuantity($conn, $raw_material_id, $quantity_raw, "Ingredient #" . ($i + 1));
+                        if (!$uom_check["valid"]) {
+                            throw new Exception($uom_check["error"]);
+                        }
+                        $quantity = $uom_check["quantity"];
+
                         $sql = "INSERT INTO recipe_items
                                 (recipe_id, raw_material_id, quantity)
                                 VALUES (?, ?, ?)";

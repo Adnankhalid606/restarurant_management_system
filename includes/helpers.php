@@ -266,4 +266,132 @@ if (!function_exists('csrf_failure_response')) {
     }
 }
 
+if (!function_exists('validateMaterialQuantity')) {
+    /**
+     * Centralized UOM quantity validator for raw materials.
+     * Enforces database-driven UOM decimal policy, non-negativity, and scalar numeric boundaries.
+     *
+     * @param mysqli $conn Active database connection
+     * @param int $raw_material_id Target raw material ID
+     * @param mixed $quantity Submitted quantity (raw string, float, or int)
+     * @param string $operationContext Name of context for error messaging (e.g. 'Purchase', 'Recipe')
+     * @return array ['valid' => bool, 'quantity' => float, 'error' => string, 'material' => array|null]
+     */
+    function validateMaterialQuantity($conn, $raw_material_id, $quantity, $operationContext = 'Quantity') {
+        $mat_id = (int) $raw_material_id;
+        if ($mat_id <= 0) {
+            return [
+                'valid' => false,
+                'quantity' => 0.0,
+                'error' => "Invalid raw material identifier.",
+                'material' => null
+            ];
+        }
+
+        if (!is_numeric($quantity)) {
+            return [
+                'valid' => false,
+                'quantity' => 0.0,
+                'error' => "$operationContext must be a valid numeric quantity.",
+                'material' => null
+            ];
+        }
+
+        $qty_float = (float) $quantity;
+        if ($qty_float <= 0) {
+            return [
+                'valid' => false,
+                'quantity' => $qty_float,
+                'error' => "$operationContext must be strictly greater than zero.",
+                'material' => null
+            ];
+        }
+
+        // Fetch material with joined UOM configuration
+        $stmt = mysqli_prepare($conn, "
+            SELECT rm.id, rm.name, rm.unit_id, rm.current_stock, uom.name AS uom_name, uom.symbol AS uom_symbol, uom.allow_decimal, uom.status AS uom_status
+            FROM raw_materials rm
+            LEFT JOIN units_of_measure uom ON rm.unit_id = uom.id
+            WHERE rm.id = ?
+            LIMIT 1
+        ");
+        mysqli_stmt_bind_param($stmt, "i", $mat_id);
+        mysqli_stmt_execute($stmt);
+        $res = mysqli_stmt_get_result($stmt);
+        $mat = mysqli_fetch_assoc($res);
+
+        if (!$mat) {
+            return [
+                'valid' => false,
+                'quantity' => $qty_float,
+                'error' => "Selected raw material #$mat_id does not exist.",
+                'material' => null
+            ];
+        }
+
+        $allow_decimal = (int) ($mat['allow_decimal'] ?? 1);
+        $uom_name = $mat['uom_name'] ?? 'Unit';
+        $uom_symbol = $mat['uom_symbol'] ?? '';
+
+        // If whole-number UOM (allow_decimal = 0), reject fractional values
+        if ($allow_decimal === 0) {
+            $qty_str = (string) $quantity;
+            $has_fraction = false;
+
+            if (strpos($qty_str, '.') !== false) {
+                $parts = explode('.', $qty_str);
+                $fractional_part = rtrim($parts[1] ?? '', '0');
+                if ($fractional_part !== '') {
+                    $has_fraction = true;
+                }
+            } else {
+                $has_fraction = (floor($qty_float) != $qty_float);
+            }
+
+            if ($has_fraction) {
+                return [
+                    'valid' => false,
+                    'quantity' => $qty_float,
+                    'error' => "Fractional quantities are not allowed for $uom_name" . ($uom_symbol ? " ($uom_symbol)" : "") . ". Please enter a whole number.",
+                    'material' => $mat
+                ];
+            }
+
+            // Integer normalized
+            $qty_float = (float) round($qty_float);
+        } else {
+            // Precision limit: max 4 decimal places
+            $qty_float = round($qty_float, 4);
+        }
+
+        return [
+            'valid' => true,
+            'quantity' => $qty_float,
+            'error' => '',
+            'material' => $mat
+        ];
+    }
+}
+
+if (!function_exists('formatQuantityUom')) {
+    /**
+     * Format a quantity string cleanly according to whether it has decimals or whole-number UOM.
+     * E.g. 12.000 with allow_decimal=0 -> "12", 2.500 with allow_decimal=1 -> "2.5" or "2.500"
+     *
+     * @param float|int|string $qty Quantity value
+     * @param int|bool $allow_decimal Whether unit allows decimals
+     * @param int $decimals Maximum decimals to display (default 3)
+     * @return string
+     */
+    function formatQuantityUom($qty, $allow_decimal = 1, $decimals = 3) {
+        $val = (float) $qty;
+        if ((int)$allow_decimal === 0 || floor($val) == $val) {
+            return number_format($val, 0);
+        }
+        $formatted = number_format($val, $decimals);
+        return rtrim(rtrim($formatted, '0'), '.');
+    }
+}
+
+
 
