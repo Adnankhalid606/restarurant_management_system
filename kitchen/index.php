@@ -315,7 +315,6 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateTicketForStage(ticket, targetStatus) {
         ticket.setAttribute('data-status', targetStatus);
         const header = ticket.querySelector('.kds-ticket-header');
-        const orderId = ticket.getAttribute('data-order-id');
 
         // Reset and apply stage classes
         ticket.className = 'kds-ticket';
@@ -332,10 +331,17 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        // Update primary action button
+        // Update primary action button and re-enable it for the next transition
         const actionBtn = ticket.querySelector('.kds-action-btn');
         if (actionBtn) {
-            if (targetStatus === 'preparing') {
+            actionBtn.disabled = false;
+            delete actionBtn.dataset.originalHtml;
+
+            if (targetStatus === 'pending') {
+                actionBtn.className = 'btn btn-warning btn-sm w-100 fw-semibold text-dark d-flex align-items-center justify-content-center gap-1 kds-action-btn';
+                actionBtn.setAttribute('data-action', 'preparing');
+                actionBtn.innerHTML = '<i class="bi bi-fire"></i><span>Start Preparing</span>';
+            } else if (targetStatus === 'preparing') {
                 actionBtn.className = 'btn btn-primary btn-sm w-100 fw-semibold d-flex align-items-center justify-content-center gap-1 kds-action-btn';
                 actionBtn.setAttribute('data-action', 'ready');
                 actionBtn.innerHTML = '<i class="bi bi-check-circle"></i><span>Mark Ready</span>';
@@ -349,6 +355,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Perform Async Status Update
     function executeStatusTransition(orderId, targetStatus, triggerBtn) {
+        const ticket = document.getElementById(`kds-ticket-${orderId}`);
+        if (ticket && ticket.dataset.transitioning === '1') {
+            return;
+        }
+        if (ticket) {
+            ticket.dataset.transitioning = '1';
+        }
+
         if (triggerBtn) {
             triggerBtn.disabled = true;
             triggerBtn.dataset.originalHtml = triggerBtn.innerHTML;
@@ -379,9 +393,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error(body.message || 'Workflow transition failed.');
             }
 
-            const ticket = document.getElementById(`kds-ticket-${orderId}`);
+            const actualStatus = (body.order && body.order.status) ? body.order.status : targetStatus;
+
             if (ticket) {
-                if (targetStatus === 'completed' || targetStatus === 'cancelled') {
+                delete ticket.dataset.transitioning;
+                if (actualStatus === 'completed' || actualStatus === 'cancelled') {
                     // Smooth exit animation
                     ticket.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
                     ticket.style.opacity = '0';
@@ -391,10 +407,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         updateKdsColumnStates();
                     }, 250);
                 } else {
-                    // Move ticket to target stage container
-                    const targetContainer = document.getElementById(`tickets-container-${targetStatus}`);
+                    // Move ticket to target stage container and re-render next button
+                    const targetContainer = document.getElementById(`tickets-container-${actualStatus}`);
                     if (targetContainer) {
-                        updateTicketForStage(ticket, targetStatus);
+                        updateTicketForStage(ticket, actualStatus);
                         targetContainer.appendChild(ticket);
                         updateKdsColumnStates();
                     }
@@ -408,10 +424,14 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(err => {
             console.error('KDS Action Error:', err);
             showKdsNotice(err.message, false);
+            if (ticket) {
+                delete ticket.dataset.transitioning;
+            }
             if (triggerBtn) {
                 triggerBtn.disabled = false;
                 if (triggerBtn.dataset.originalHtml) {
                     triggerBtn.innerHTML = triggerBtn.dataset.originalHtml;
+                    delete triggerBtn.dataset.originalHtml;
                 }
             }
         });

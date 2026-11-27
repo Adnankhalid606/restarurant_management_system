@@ -222,13 +222,13 @@ try {
         throw new Exception("Access denied to requested order.");
     }
 
-    // 2. Terminal state safeguards against locked row
-    if ($locked_order["status"] === "completed" && $status !== "completed") {
-        throw new Exception("Security Notice: Completed orders are finalized and cannot transition to " . ucfirst($status) . ".");
+    // 2. Terminal state safeguards against locked row (completed/cancelled orders are strictly read-only)
+    if ($locked_order["status"] === "completed") {
+        throw new Exception("Security Notice: Completed orders are finalized and read-only. No fields can be modified.");
     }
 
-    if ($locked_order["status"] === "cancelled" && $status !== "cancelled") {
-        throw new Exception("Security Notice: Cancelled orders cannot be reopened or transitioned to " . ucfirst($status) . ".");
+    if ($locked_order["status"] === "cancelled") {
+        throw new Exception("Security Notice: Cancelled orders are closed and read-only. No fields can be modified.");
     }
 
     // 3. Lock associated bill and check invoice_payments while lock is held
@@ -504,29 +504,7 @@ try {
 
 $page_title = "Edit Order #" . $id;
 $active_menu = "orders";
-
-// Fetch linked bill and payment status for UI restrictions
-$ui_linked_bill = null;
-$ui_payment_count = 0;
-$ui_total_paid = 0.0;
-$bill_check_stmt = mysqli_prepare($conn, "SELECT id, invoice_number, payment_status, total_amount FROM bills WHERE order_id = ?");
-mysqli_stmt_bind_param($bill_check_stmt, "i", $id);
-mysqli_stmt_execute($bill_check_stmt);
-$bill_check_res = mysqli_stmt_get_result($bill_check_stmt);
-if ($bill_check_res && $b_row = mysqli_fetch_assoc($bill_check_res)) {
-    $ui_linked_bill = $b_row;
-    $p_stmt = mysqli_prepare($conn, "SELECT COUNT(*) AS payment_count, COALESCE(SUM(amount), 0) AS total_paid FROM invoice_payments WHERE bill_id = ?");
-    mysqli_stmt_bind_param($p_stmt, "i", $ui_linked_bill['id']);
-    mysqli_stmt_execute($p_stmt);
-    $p_res = mysqli_stmt_get_result($p_stmt);
-    if ($p_res && $p_row = mysqli_fetch_assoc($p_res)) {
-        $ui_payment_count = (int) ($p_row['payment_count'] ?? 0);
-        $ui_total_paid = (float) ($p_row['total_paid'] ?? 0);
-    }
-    mysqli_stmt_close($p_stmt);
-}
-mysqli_stmt_close($bill_check_stmt);
-$has_recorded_payments = ($ui_payment_count > 0 || $ui_total_paid > 0 || ($ui_linked_bill && $ui_linked_bill['payment_status'] === 'paid') || $order['payment_status'] === 'paid');
+$is_terminal_readonly = in_array($order["status"], ["completed", "cancelled"], true);
 
 require_once "../includes/header.php";
 
@@ -537,7 +515,7 @@ require_once "../includes/header.php";
     <div>
         <h2 class="page-header-title">Edit Order #<?php echo $id; ?></h2>
         <p class="page-header-subtitle">
-            Update service type, dining table, or status progression
+            Update customer, service type, dining table, or assigned waiter
         </p>
     </div>
     <div class="d-flex align-items-center gap-2">
@@ -562,6 +540,15 @@ require_once "../includes/header.php";
     </div>
 <?php } ?>
 
+<?php if ($is_terminal_readonly) { ?>
+    <div class="alert alert-warning border py-2 px-3 mb-4 small d-flex align-items-center gap-2">
+        <i class="bi bi-lock-fill fs-5 flex-shrink-0 text-warning"></i>
+        <div>
+            <strong>Read-Only Order:</strong> This order is <strong><?php echo htmlspecialchars(ucfirst($order["status"]), ENT_QUOTES, 'UTF-8'); ?></strong> and cannot be edited. Customer, service type, dining table, and waiter details are locked.
+        </div>
+    </div>
+<?php } ?>
+
 <form method="POST">
     <?php echo csrf_field(); ?>
     <div class="row g-4">
@@ -575,7 +562,7 @@ require_once "../includes/header.php";
                     <!-- Customer -->
                     <div class="mb-3">
                         <label for="customerId" class="form-label pos-form-label">Customer</label>
-                        <select name="customer_id" id="customerId" class="form-select pos-form-control">
+                        <select name="customer_id" id="customerId" class="form-select pos-form-control" <?php if ($is_terminal_readonly) echo "disabled"; ?>>
                             <option value="">Walk-in Customer</option>
                             <?php mysqli_data_seek($customers, 0); ?>
                             <?php while ($customer = mysqli_fetch_assoc($customers)) { ?>
@@ -589,7 +576,7 @@ require_once "../includes/header.php";
                     <!-- Order Type -->
                     <div class="mb-3">
                         <label for="orderType" class="form-label pos-form-label">Order Type <span class="text-danger">*</span></label>
-                        <select name="order_type" id="orderType" class="form-select pos-form-control" required>
+                        <select name="order_type" id="orderType" class="form-select pos-form-control" <?php echo $is_terminal_readonly ? "disabled" : "required"; ?>>
                             <option value="dine_in" <?php if ($order["order_type"] === "dine_in") echo "selected"; ?>>
                                 Dine In
                             </option>
@@ -605,7 +592,7 @@ require_once "../includes/header.php";
                     <!-- Dining Table -->
                     <div id="tableSection" class="mb-3" style="<?php echo ($order["order_type"] === "dine_in") ? "" : "display: none;"; ?>">
                         <label for="tableId" class="form-label pos-form-label">Dining Table</label>
-                        <select name="table_id" id="tableId" class="form-select pos-form-control">
+                        <select name="table_id" id="tableId" class="form-select pos-form-control" <?php if ($is_terminal_readonly) echo "disabled"; ?>>
                             <option value="">No Table Assigned</option>
                             <?php mysqli_data_seek($tables, 0); ?>
                             <?php while ($table = mysqli_fetch_assoc($tables)) { ?>
@@ -621,7 +608,7 @@ require_once "../includes/header.php";
                     <div class="mb-2">
                         <?php if ($_SESSION["role"] === "admin") { ?>
                             <label for="waiterId" class="form-label pos-form-label">Assigned Waiter <span class="text-danger">*</span></label>
-                            <select name="waiter_id" id="waiterId" class="form-select pos-form-control" required>
+                            <select name="waiter_id" id="waiterId" class="form-select pos-form-control" <?php echo $is_terminal_readonly ? "disabled" : "required"; ?>>
                                 <option value="">Select Waiter</option>
                                 <?php mysqli_data_seek($waiters, 0); ?>
                                 <?php while ($waiter = mysqli_fetch_assoc($waiters)) { ?>
@@ -642,70 +629,26 @@ require_once "../includes/header.php";
             </div>
         </div>
 
-        <!-- Right: Status Progression & Actions -->
+        <!-- Right: Read-Only Order Summary & Actions -->
         <div class="col-12 col-lg-5">
             <div class="pos-card mb-4">
                 <div class="pos-card-header">
-                    <span class="pos-card-title"><i class="bi bi-clock-history me-2 text-primary"></i>Status &amp; Workflow</span>
+                    <span class="pos-card-title"><i class="bi bi-receipt me-2 text-primary"></i>Order Summary</span>
                 </div>
                 <div class="pos-card-body">
-                    <!-- Status -->
-                    <div class="mb-3">
-                        <label for="orderStatus" class="form-label pos-form-label">Order Status <span class="text-danger">*</span></label>
-                        <?php if ($order["status"] === "completed") { ?>
-                            <input type="hidden" name="status" value="completed">
-                            <input type="text" class="form-control pos-form-control bg-light text-muted" value="Completed (Locked)" readonly>
-                            <small class="text-muted d-block mt-1">Completed orders are finalized for kitchen fulfillment and financial accounting.</small>
-                        <?php } elseif ($order["status"] === "cancelled") { ?>
-                            <input type="hidden" name="status" value="cancelled">
-                            <input type="text" class="form-control pos-form-control bg-light text-muted" value="Cancelled (Locked)" readonly>
-                            <small class="text-muted d-block mt-1">Cancelled orders are closed and cannot be reopened.</small>
-                        <?php } elseif ($order["status"] === "ready" && $has_recorded_payments) { ?>
-                            <select name="status" id="orderStatus" class="form-select pos-form-control" required>
-                                <option value="ready" selected>Ready</option>
-                                <option value="completed">Completed</option>
-                            </select>
-                            <div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">
-                                <i class="bi bi-lock-fill me-1"></i> Status cannot be demoted or cancelled because payments have been recorded on <?php echo htmlspecialchars($ui_linked_bill['invoice_number'] ?? 'the invoice', ENT_QUOTES, 'UTF-8'); ?>.
-                            </div>
-                        <?php } elseif ($order["status"] === "ready") { ?>
-                            <select name="status" id="orderStatus" class="form-select pos-form-control" required>
-                                <option value="pending">Pending</option>
-                                <option value="preparing">Preparing</option>
-                                <option value="ready" selected>Ready</option>
-                                <option value="completed">Completed</option>
-                                <option value="cancelled">Cancelled</option>
-                            </select>
-                            <small class="text-muted d-block mt-1"><i class="bi bi-info-circle me-1"></i>Reverting to Pending/Preparing or Cancelling will remove the uncollected draft invoice.</small>
-                        <?php } else { ?>
-                            <select name="status" id="orderStatus" class="form-select pos-form-control" required>
-                                <option value="pending" <?php if ($order["status"] === "pending") echo "selected"; ?>>
-                                    Pending
-                                </option>
-                                <option value="preparing" <?php if ($order["status"] === "preparing") echo "selected"; ?>>
-                                    Preparing
-                                </option>
-                                <option value="ready" <?php if ($order["status"] === "ready") echo "selected"; ?>>
-                                    Ready
-                                </option>
-                                <option value="completed" <?php if ($order["status"] === "completed") echo "selected"; ?>>
-                                    Completed
-                                </option>
-                                <?php if (!$has_recorded_payments) { ?>
-                                    <option value="cancelled" <?php if ($order["status"] === "cancelled") echo "selected"; ?>>
-                                        Cancelled
-                                    </option>
-                                <?php } ?>
-                            </select>
-                            <small class="text-muted d-block mt-1">Cancelling an order automatically releases any occupied dining table.</small>
-                        <?php } ?>
-                    </div>
+                    <input type="hidden" name="status" value="<?php echo htmlspecialchars($order["status"], ENT_QUOTES, 'UTF-8'); ?>">
 
                     <!-- Readonly Order Summary Card -->
-                    <div class="order-summary-box mb-4">
+                    <div class="order-summary-box mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-muted small">Order Status:</span>
+                            <span class="badge-subtle badge-status-<?php echo htmlspecialchars($order['status'], ENT_QUOTES, 'UTF-8'); ?> text-capitalize">
+                                <?php echo htmlspecialchars($order["status"], ENT_QUOTES, 'UTF-8'); ?>
+                            </span>
+                        </div>
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="text-muted small">Payment Status:</span>
-                            <span class="badge-subtle badge-status-<?php echo $order['payment_status']; ?> text-capitalize">
+                            <span class="badge-subtle badge-status-<?php echo htmlspecialchars($order['payment_status'], ENT_QUOTES, 'UTF-8'); ?> text-capitalize">
                                 <?php echo htmlspecialchars($order["payment_status"], ENT_QUOTES, 'UTF-8'); ?>
                             </span>
                         </div>
@@ -722,12 +665,18 @@ require_once "../includes/header.php";
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm mb-2">
-                        <i class="bi bi-save"></i>
-                        <span>Update Order</span>
-                    </button>
+                    <small class="text-muted d-block mb-3">
+                        <i class="bi bi-info-circle me-1"></i>Workflow status progression and cancellations are managed from Kitchen Display.
+                    </small>
+
+                    <?php if (!$is_terminal_readonly) { ?>
+                        <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm mb-2">
+                            <i class="bi bi-save"></i>
+                            <span>Update Order</span>
+                        </button>
+                    <?php } ?>
                     <a href="view.php?id=<?php echo $id; ?>" class="btn btn-outline-secondary w-100 py-2">
-                        Cancel
+                        <?php echo $is_terminal_readonly ? "Back to Order Ticket" : "Cancel"; ?>
                     </a>
                 </div>
             </div>

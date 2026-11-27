@@ -579,8 +579,8 @@ $posted_waiter_id = $_POST["waiter_id"] ?? "";
                     <!-- Customer -->
                     <div class="mb-2">
                         <label for="customerId" class="form-label pos-form-label mb-1">Customer</label>
-                        <select name="customer_id" id="customerId" class="form-select pos-form-control py-1 fs-6">
-                            <option value="">Walk-in Customer</option>
+                        <select name="customer_id" id="customerId" class="form-select pos-form-control py-1 fs-6 searchable-select-enabled" data-searchable-portal="true" data-placeholder="Search customer by name or phone...">
+                            <option value="0" <?php if ($posted_cust_id === "" || $posted_cust_id === "0") echo "selected"; ?>>Walk-in Customer</option>
                             <?php mysqli_data_seek($customers, 0); ?>
                             <?php while ($customer = mysqli_fetch_assoc($customers)) { ?>
                                 <option value="<?php echo $customer["id"]; ?>" <?php if ($posted_cust_id == $customer["id"]) echo "selected"; ?>>
@@ -604,7 +604,7 @@ $posted_waiter_id = $_POST["waiter_id"] ?? "";
                     <!-- Dining Table (conditional) -->
                     <div id="tableSection" class="mb-2" style="<?php echo ($posted_order_type === 'dine_in') ? 'display: block;' : 'display: none;'; ?>">
                         <label for="tableId" class="form-label pos-form-label mb-1">Dining Table <span class="text-danger">*</span></label>
-                        <select name="table_id" id="tableId" class="form-select pos-form-control py-1 fs-6">
+                        <select name="table_id" id="tableId" class="form-select pos-form-control py-1 fs-6 searchable-select-enabled" data-searchable-portal="true" data-placeholder="Search available dining table...">
                             <option value="">-- Select Table --</option>
                             <?php mysqli_data_seek($tables, 0); ?>
                             <?php while ($table = mysqli_fetch_assoc($tables)) { ?>
@@ -620,7 +620,7 @@ $posted_waiter_id = $_POST["waiter_id"] ?? "";
                     <div class="mb-0">
                         <?php if ($_SESSION["role"] === "admin") { ?>
                             <label for="waiterId" class="form-label pos-form-label mb-1">Assigned Waiter <span class="text-danger">*</span></label>
-                            <select name="waiter_id" id="waiterId" class="form-select pos-form-control py-1 fs-6" required>
+                            <select name="waiter_id" id="waiterId" class="form-select pos-form-control py-1 fs-6 searchable-select-enabled" data-searchable-portal="true" data-placeholder="Search assigned waiter...">
                                 <option value="">-- Select Waiter --</option>
                                 <?php mysqli_data_seek($waiters, 0); ?>
                                 <?php while ($waiter = mysqli_fetch_assoc($waiters)) { ?>
@@ -686,6 +686,7 @@ $posted_waiter_id = $_POST["waiter_id"] ?? "";
     </div>
 </form>
 
+<script src="../assets/js/searchable-select.js"></script>
 <script>
 // Cart state: object keyed by menu_item_id -> { id, name, price, quantity }
 let cart = {};
@@ -704,7 +705,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 tableSection.style.display = "block";
             } else {
                 tableSection.style.display = "none";
-                if (tableSelect) tableSelect.value = "";
+                if (tableSelect) {
+                    tableSelect.value = "";
+                    tableSelect.dispatchEvent(new Event("change"));
+                }
             }
         });
     }
@@ -784,6 +788,23 @@ document.addEventListener('DOMContentLoaded', function () {
     const createOrderForm = document.getElementById('createOrderForm');
     if (createOrderForm) {
         createOrderForm.addEventListener('submit', function (e) {
+            if (orderType && orderType.value === 'dine_in' && tableSelect && !tableSelect.value) {
+                e.preventDefault();
+                alert('Please select a dining table for Dine In orders.');
+                if (tableSelect._searchableSelectInstance && tableSelect._searchableSelectInstance.input) {
+                    tableSelect._searchableSelectInstance.input.focus();
+                }
+                return;
+            }
+            const waiterSelect = document.getElementById('waiterId');
+            if (waiterSelect && !waiterSelect.value) {
+                e.preventDefault();
+                alert('Please select an assigned waiter.');
+                if (waiterSelect._searchableSelectInstance && waiterSelect._searchableSelectInstance.input) {
+                    waiterSelect._searchableSelectInstance.input.focus();
+                }
+                return;
+            }
             if (Object.keys(cart).length === 0) {
                 e.preventDefault();
                 alert('Please add at least one menu item to the order ticket before submitting.');
