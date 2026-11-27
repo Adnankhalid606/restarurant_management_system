@@ -2,9 +2,65 @@
 
 require_once "../config/database.php";
 require_once "../includes/role.php";
+require_once "../includes/pagination.php";
 
 requireRole(["admin", "kitchen"]);
 
+$pg = get_pagination_params(25, [25, 50, 100]);
+$q = trim($_GET["q"] ?? "");
+$flow = trim($_GET["flow"] ?? "all");
+if (!in_array($flow, ["all", "inflow", "outflow"], true)) {
+    $flow = "all";
+}
+
+// 1. Summary KPI counts across all transactions
+$kpi_sql = "SELECT
+                COUNT(*) AS total_count,
+                SUM(CASE WHEN type IN ('purchase', 'adjustment_in') THEN 1 ELSE 0 END) AS inflow_count,
+                SUM(CASE WHEN type NOT IN ('purchase', 'adjustment_in') THEN 1 ELSE 0 END) AS outflow_count
+            FROM inventory_transactions";
+$kpi_row = mysqli_fetch_assoc(mysqli_query($conn, $kpi_sql));
+$total_count = (int) ($kpi_row['total_count'] ?? 0);
+$inflow_count = (int) ($kpi_row['inflow_count'] ?? 0);
+$outflow_count = (int) ($kpi_row['outflow_count'] ?? 0);
+
+// 2. Filtered WHERE clause
+$where_clauses = [];
+$bind_params = [];
+$bind_types = "";
+
+if ($q !== "") {
+    $where_clauses[] = "raw_materials.name LIKE ?";
+    $bind_params[] = "%" . $q . "%";
+    $bind_types .= "s";
+}
+
+if ($flow === "inflow") {
+    $where_clauses[] = "inventory_transactions.type IN ('purchase', 'adjustment_in')";
+} elseif ($flow === "outflow") {
+    $where_clauses[] = "inventory_transactions.type NOT IN ('purchase', 'adjustment_in')";
+}
+
+$where_sql = !empty($where_clauses) ? ("WHERE " . implode(" AND ", $where_clauses)) : "";
+
+// 3. Filtered COUNT query
+$count_sql = "SELECT COUNT(*) AS total
+              FROM inventory_transactions
+              JOIN raw_materials ON inventory_transactions.raw_material_id = raw_materials.id
+              $where_sql";
+$c_stmt = mysqli_prepare($conn, $count_sql);
+if ($bind_types !== "") {
+    mysqli_stmt_bind_param($c_stmt, $bind_types, ...$bind_params);
+}
+mysqli_stmt_execute($c_stmt);
+$filtered_total = (int) (mysqli_fetch_assoc(mysqli_stmt_get_result($c_stmt))['total'] ?? 0);
+mysqli_stmt_close($c_stmt);
+
+$pagination = finalize_pagination($filtered_total, $pg['page'], $pg['per_page']);
+$limit = $pagination['per_page'];
+$offset = $pagination['offset'];
+
+// 4. Paginated data query
 $sql = "SELECT
             inventory_transactions.id,
             raw_materials.name AS material_name,
@@ -12,30 +68,25 @@ $sql = "SELECT
             inventory_transactions.type,
             inventory_transactions.quantity,
             inventory_transactions.created_at
-
         FROM inventory_transactions
-
         JOIN raw_materials
             ON inventory_transactions.raw_material_id = raw_materials.id
+        $where_sql
+        ORDER BY inventory_transactions.id DESC
+        LIMIT ? OFFSET ?";
 
-        ORDER BY inventory_transactions.id DESC";
-
-$result = mysqli_query($conn, $sql);
+$d_stmt = mysqli_prepare($conn, $sql);
+$data_types = $bind_types . "ii";
+$data_params = array_merge($bind_params, [$limit, $offset]);
+mysqli_stmt_bind_param($d_stmt, $data_types, ...$data_params);
+mysqli_stmt_execute($d_stmt);
+$result = mysqli_stmt_get_result($d_stmt);
 
 $transactions = [];
-$total_count = 0;
-$inflow_count = 0;
-$outflow_count = 0;
-
 while ($t = mysqli_fetch_assoc($result)) {
     $transactions[] = $t;
-    $total_count++;
-    if ($t['type'] === 'purchase' || $t['type'] === 'adjustment_in') {
-        $inflow_count++;
-    } else {
-        $outflow_count++;
-    }
 }
+mysqli_stmt_close($d_stmt);
 
 $page_title = "Inventory Transactions Log";
 $active_menu = "inventory";
@@ -103,39 +154,44 @@ require_once "../includes/header.php";
 <!-- Filter & Search Controls Bar -->
 <div class="pos-card mb-4">
     <div class="p-3">
-        <div class="row g-2 align-items-center justify-content-between">
+        <form method="GET" class="row g-2 align-items-center justify-content-between">
+            <input type="hidden" name="flow" value="<?php echo htmlspecialchars($flow, ENT_QUOTES, 'UTF-8'); ?>">
+            <input type="hidden" name="per_page" value="<?php echo (int)$pagination['per_page']; ?>">
+            <input type="hidden" name="page" value="1">
             <div class="col-12 col-md-5">
-                <div class="input-group">
+                <div class="input-group input-group-sm">
                     <span class="input-group-text bg-light border-end-0">
                         <i class="bi bi-search text-muted"></i>
                     </span>
                     <input 
                         type="text" 
+                        name="q"
                         class="form-control pos-form-control border-start-0" 
                         id="txSearch" 
+                        value="<?php echo htmlspecialchars($q, ENT_QUOTES, 'UTF-8'); ?>"
                         placeholder="Search by material name..."
                     >
+                    <button type="submit" class="btn btn-outline-primary">Search</button>
+                    <?php if ($q !== "" || $flow !== "all") { ?>
+                        <a href="?per_page=<?php echo (int)$pagination['per_page']; ?>" class="btn btn-outline-secondary">Reset</a>
+                    <?php } ?>
                 </div>
             </div>
 
             <div class="col-12 col-md-auto d-flex align-items-center gap-3">
                 <div class="btn-group btn-group-sm" role="group" id="txFilterGroup">
-                    <button type="button" class="btn btn-outline-secondary active" data-filter="all">
+                    <a href="<?php echo htmlspecialchars(build_pagination_url(['flow' => 'all', 'page' => 1]), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-secondary <?php echo ($flow === 'all') ? 'active' : ''; ?>">
                         All (<?php echo $total_count; ?>)
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary" data-filter="inflow">
+                    </a>
+                    <a href="<?php echo htmlspecialchars(build_pagination_url(['flow' => 'inflow', 'page' => 1]), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-secondary <?php echo ($flow === 'inflow') ? 'active' : ''; ?>">
                         Inflows (<?php echo $inflow_count; ?>)
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary" data-filter="outflow">
+                    </a>
+                    <a href="<?php echo htmlspecialchars(build_pagination_url(['flow' => 'outflow', 'page' => 1]), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-secondary <?php echo ($flow === 'outflow') ? 'active' : ''; ?>">
                         Outflows (<?php echo $outflow_count; ?>)
-                    </button>
-                </div>
-
-                <div class="text-muted small d-none d-md-block">
-                    <span id="filteredTxCount"><?php echo $total_count; ?></span> of <?php echo $total_count; ?> records
+                    </a>
                 </div>
             </div>
-        </div>
+        </form>
     </div>
 </div>
 
@@ -225,67 +281,8 @@ require_once "../includes/header.php";
                 </tbody>
             </table>
         </div>
-
-        <!-- No Search Results Found Row (hidden by default) -->
-        <div id="noTxResults" class="p-4 text-center text-muted d-none">
-            <i class="bi bi-search fs-3 d-block mb-2 text-secondary opacity-50"></i>
-            No matching transactions found
-        </div>
+        <?php render_pagination_bar($pagination); ?>
     </div>
-
-    <!-- Client-side Search and Filter Script -->
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const searchInput = document.getElementById('txSearch');
-        const filterButtons = document.querySelectorAll('#txFilterGroup button');
-        const rows = document.querySelectorAll('.tx-row');
-        const countLabel = document.getElementById('filteredTxCount');
-        const noResults = document.getElementById('noTxResults');
-
-        let currentFilter = 'all';
-
-        function applyFilters() {
-            const query = searchInput.value.trim().toLowerCase();
-            let visibleCount = 0;
-
-            rows.forEach(row => {
-                const name = row.getAttribute('data-name') || '';
-                const flow = row.getAttribute('data-flow') || '';
-
-                const matchesQuery = !query || name.includes(query);
-                const matchesFilter = (currentFilter === 'all') || (flow === currentFilter);
-
-                if (matchesQuery && matchesFilter) {
-                    row.classList.remove('d-none');
-                    visibleCount++;
-                } else {
-                    row.classList.add('d-none');
-                }
-            });
-
-            if (countLabel) {
-                countLabel.textContent = visibleCount;
-            }
-
-            if (visibleCount === 0) {
-                noResults.classList.remove('d-none');
-            } else {
-                noResults.classList.add('d-none');
-            }
-        }
-
-        searchInput.addEventListener('input', applyFilters);
-
-        filterButtons.forEach(btn => {
-            btn.addEventListener('click', function() {
-                filterButtons.forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                currentFilter = this.getAttribute('data-filter');
-                applyFilters();
-            });
-        });
-    });
-    </script>
 <?php } ?>
 
 <?php

@@ -2,28 +2,68 @@
 
 require_once "../config/database.php";
 require_once "../includes/role.php";
+require_once "../includes/pagination.php";
 
 requireRole(["admin", "waiter"]);
 
-$sql = "SELECT * FROM customers ORDER BY id DESC";
+$pg = get_pagination_params(25, [25, 50, 100]);
+$q = trim($_GET["q"] ?? "");
 
-$result = mysqli_query($conn, $sql);
+// 1. Summary KPIs across all customers
+$kpi_sql = "SELECT
+                COUNT(*) AS total_customers,
+                SUM(CASE WHEN phone IS NOT NULL AND TRIM(phone) <> '' THEN 1 ELSE 0 END) AS with_phone,
+                SUM(CASE WHEN address IS NOT NULL AND TRIM(address) <> '' THEN 1 ELSE 0 END) AS with_address
+            FROM customers";
+$kpi_row = mysqli_fetch_assoc(mysqli_query($conn, $kpi_sql));
+$total_customers = (int) ($kpi_row['total_customers'] ?? 0);
+$with_phone = (int) ($kpi_row['with_phone'] ?? 0);
+$with_address = (int) ($kpi_row['with_address'] ?? 0);
+
+// 2. Filtered WHERE clause
+$where_clauses = [];
+$bind_params = [];
+$bind_types = "";
+
+if ($q !== "") {
+    $where_clauses[] = "(name LIKE ? OR COALESCE(phone, '') LIKE ? OR COALESCE(address, '') LIKE ?)";
+    $like_q = "%" . $q . "%";
+    $bind_params[] = $like_q;
+    $bind_params[] = $like_q;
+    $bind_params[] = $like_q;
+    $bind_types .= "sss";
+}
+
+$where_sql = !empty($where_clauses) ? ("WHERE " . implode(" AND ", $where_clauses)) : "";
+
+// 3. Filtered COUNT query
+$count_sql = "SELECT COUNT(*) AS total FROM customers $where_sql";
+$c_stmt = mysqli_prepare($conn, $count_sql);
+if ($bind_types !== "") {
+    mysqli_stmt_bind_param($c_stmt, $bind_types, ...$bind_params);
+}
+mysqli_stmt_execute($c_stmt);
+$filtered_total = (int) (mysqli_fetch_assoc(mysqli_stmt_get_result($c_stmt))['total'] ?? 0);
+mysqli_stmt_close($c_stmt);
+
+$pagination = finalize_pagination($filtered_total, $pg['page'], $pg['per_page']);
+$limit = $pagination['per_page'];
+$offset = $pagination['offset'];
+
+// 4. Paginated data query
+$sql = "SELECT * FROM customers $where_sql ORDER BY id DESC LIMIT ? OFFSET ?";
+$d_stmt = mysqli_prepare($conn, $sql);
+$data_types = $bind_types . "ii";
+$data_params = array_merge($bind_params, [$limit, $offset]);
+mysqli_stmt_bind_param($d_stmt, $data_types, ...$data_params);
+mysqli_stmt_execute($d_stmt);
+$result = mysqli_stmt_get_result($d_stmt);
 
 $customers = [];
-$total_customers = 0;
-$with_phone = 0;
-$with_address = 0;
-
 while ($c = mysqli_fetch_assoc($result)) {
     $customers[] = $c;
-    $total_customers++;
-    if (!empty($c['phone'])) {
-        $with_phone++;
-    }
-    if (!empty($c['address'])) {
-        $with_address++;
-    }
 }
+mysqli_stmt_close($d_stmt);
 
 $page_title = "Customers Directory";
 $active_menu = "customers";
@@ -85,24 +125,29 @@ require_once "../includes/header.php";
 <!-- Search & Controls Bar -->
 <div class="pos-card mb-4">
     <div class="p-3">
-        <div class="row g-2 align-items-center justify-content-between">
+        <form method="GET" class="row g-2 align-items-center justify-content-between">
+            <input type="hidden" name="per_page" value="<?php echo (int)$pagination['per_page']; ?>">
+            <input type="hidden" name="page" value="1">
             <div class="col-12 col-md-6 col-lg-5">
-                <div class="input-group">
+                <div class="input-group input-group-sm">
                     <span class="input-group-text bg-light border-end-0">
                         <i class="bi bi-search text-muted"></i>
                     </span>
                     <input 
                         type="text" 
+                        name="q"
                         class="form-control pos-form-control border-start-0" 
                         id="customerSearch" 
+                        value="<?php echo htmlspecialchars($q, ENT_QUOTES, 'UTF-8'); ?>"
                         placeholder="Search by name, phone or address..."
                     >
+                    <button type="submit" class="btn btn-outline-primary">Search</button>
+                    <?php if ($q !== "") { ?>
+                        <a href="?per_page=<?php echo (int)$pagination['per_page']; ?>" class="btn btn-outline-secondary">Reset</a>
+                    <?php } ?>
                 </div>
             </div>
-            <div class="col-auto text-muted small">
-                <span id="filteredCount"><?php echo $total_customers; ?></span> of <?php echo $total_customers; ?> customers
-            </div>
-        </div>
+        </form>
     </div>
 </div>
 
@@ -201,47 +246,8 @@ require_once "../includes/header.php";
                 </tbody>
             </table>
         </div>
-        
-        <!-- No Search Results Found Row (hidden by default) -->
-        <div id="noSearchResults" class="p-4 text-center text-muted d-none">
-            <i class="bi bi-search fs-3 d-block mb-2 text-secondary opacity-50"></i>
-            No matching customers found
-        </div>
+        <?php render_pagination_bar($pagination); ?>
     </div>
-
-    <!-- Client-side Search Filter Script -->
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const searchInput = document.getElementById('customerSearch');
-        const rows = document.querySelectorAll('.customer-row');
-        const countLabel = document.getElementById('filteredCount');
-        const noResults = document.getElementById('noSearchResults');
-        const total = rows.length;
-
-        searchInput.addEventListener('input', function() {
-            const query = this.value.trim().toLowerCase();
-            let visibleCount = 0;
-
-            rows.forEach(row => {
-                const searchData = row.getAttribute('data-search') || '';
-                if (!query || searchData.includes(query)) {
-                    row.classList.remove('d-none');
-                    visibleCount++;
-                } else {
-                    row.classList.add('d-none');
-                }
-            });
-
-            countLabel.textContent = visibleCount;
-
-            if (visibleCount === 0 && query !== '') {
-                noResults.classList.remove('d-none');
-            } else {
-                noResults.classList.add('d-none');
-            }
-        });
-    });
-    </script>
 <?php } ?>
 
 <?php

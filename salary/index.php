@@ -2,10 +2,60 @@
 
 require_once "../config/database.php";
 require_once "../includes/role.php";
+require_once "../includes/pagination.php";
 
 requireRole(["admin"]);
 
-// Get salaries
+$pg = get_pagination_params(25, [25, 50, 100]);
+$q = trim($_GET["q"] ?? "");
+
+// 1. Summary KPIs across all salaries
+$kpi_sql = "SELECT
+                COUNT(*) AS total_records,
+                COALESCE(SUM(amount), 0) AS total_amount,
+                COALESCE(SUM(CASE WHEN payment_status = 'paid' THEN amount ELSE 0 END), 0) AS total_paid,
+                COALESCE(SUM(CASE WHEN payment_status <> 'paid' THEN amount ELSE 0 END), 0) AS total_unpaid
+            FROM salaries";
+$kpi_row = mysqli_fetch_assoc(mysqli_query($conn, $kpi_sql));
+$total_records = (int) ($kpi_row['total_records'] ?? 0);
+$total_amount = (float) ($kpi_row['total_amount'] ?? 0);
+$total_paid = (float) ($kpi_row['total_paid'] ?? 0);
+$total_unpaid = (float) ($kpi_row['total_unpaid'] ?? 0);
+
+// 2. Filtered WHERE clause
+$where_clauses = [];
+$bind_params = [];
+$bind_types = "";
+
+if ($q !== "") {
+    $where_clauses[] = "(users.name LIKE ? OR salaries.salary_type LIKE ? OR salaries.payment_status LIKE ? OR COALESCE(salaries.description, '') LIKE ? OR CAST(salaries.id AS CHAR) LIKE ? OR CAST(salaries.salary_date AS CHAR) LIKE ?)";
+    $like_q = "%" . $q . "%";
+    for ($i = 0; $i < 6; $i++) {
+        $bind_params[] = $like_q;
+    }
+    $bind_types .= "ssssss";
+}
+
+$where_sql = !empty($where_clauses) ? ("WHERE " . implode(" AND ", $where_clauses)) : "";
+
+// 3. Filtered COUNT query
+$count_sql = "SELECT COUNT(*) AS total
+              FROM salaries
+              INNER JOIN users ON salaries.user_id = users.id
+              $where_sql";
+$c_stmt = mysqli_prepare($conn, $count_sql);
+if ($bind_types !== "") {
+    mysqli_stmt_bind_param($c_stmt, $bind_types, ...$bind_params);
+}
+mysqli_stmt_execute($c_stmt);
+$filtered_total = (int) (mysqli_fetch_assoc(mysqli_stmt_get_result($c_stmt))['total'] ?? 0);
+mysqli_stmt_close($c_stmt);
+
+$pagination = finalize_pagination($filtered_total, $pg['page'], $pg['per_page']);
+$limit = $pagination['per_page'];
+$offset = $pagination['offset'];
+
+// 4. Paginated data query (stable secondary sort by salaries.id DESC)
 $sql = "
     SELECT
         salaries.id,
@@ -18,27 +68,23 @@ $sql = "
     FROM salaries
     INNER JOIN users
         ON salaries.user_id = users.id
-    ORDER BY salaries.salary_date DESC
+    $where_sql
+    ORDER BY salaries.salary_date DESC, salaries.id DESC
+    LIMIT ? OFFSET ?
 ";
 
-$result = mysqli_query($conn, $sql);
+$d_stmt = mysqli_prepare($conn, $sql);
+$data_types = $bind_types . "ii";
+$data_params = array_merge($bind_params, [$limit, $offset]);
+mysqli_stmt_bind_param($d_stmt, $data_types, ...$data_params);
+mysqli_stmt_execute($d_stmt);
+$result = mysqli_stmt_get_result($d_stmt);
 
 $salaries = [];
-$total_amount = 0;
-$total_paid = 0;
-$total_unpaid = 0;
-
 while ($row = mysqli_fetch_assoc($result)) {
     $salaries[] = $row;
-    $amount = (float) $row["amount"];
-    $total_amount += $amount;
-    if ($row["payment_status"] === "paid") {
-        $total_paid += $amount;
-    } else {
-        $total_unpaid += $amount;
-    }
 }
-$total_records = count($salaries);
+mysqli_stmt_close($d_stmt);
 
 $page_title = "Staff Salaries & Payroll";
 $active_menu = "salary";
@@ -135,30 +181,40 @@ require_once "../includes/header.php";
             </span>
         </div>
         <div class="d-flex align-items-center gap-2" style="min-width: 260px;">
-            <div class="input-group input-group-sm">
+            <form method="GET" class="input-group input-group-sm m-0">
+                <input type="hidden" name="per_page" value="<?php echo (int)$pagination['per_page']; ?>">
+                <input type="hidden" name="page" value="1">
                 <span class="input-group-text bg-white border-end-0 text-muted">
                     <i class="bi bi-search"></i>
                 </span>
                 <input type="text" 
+                       name="q"
                        id="salarySearchInput" 
                        class="form-control border-start-0" 
+                       value="<?php echo htmlspecialchars($q, ENT_QUOTES, 'UTF-8'); ?>"
                        placeholder="Filter employee, type, status..." 
                        aria-label="Search salary records">
-            </div>
+                <button type="submit" class="btn btn-outline-primary">Search</button>
+                <?php if ($q !== "") { ?>
+                    <a href="?per_page=<?php echo (int)$pagination['per_page']; ?>" class="btn btn-outline-secondary">Reset</a>
+                <?php } ?>
+            </form>
         </div>
     </div>
 
     <div class="pos-card-body p-0">
-        <?php if ($total_records === 0) { ?>
+        <?php if (empty($salaries)) { ?>
             <div class="text-center py-5">
                 <div class="mb-3 text-muted">
                     <i class="bi bi-cash-coin fs-1"></i>
                 </div>
                 <h5 class="fw-semibold text-dark">No Salary Records Found</h5>
-                <p class="text-muted small mb-3">There are no payroll disbursement entries recorded in the system yet.</p>
-                <a href="create.php" class="btn btn-primary btn-sm">
-                    <i class="bi bi-plus-circle me-1"></i>Add First Salary Entry
-                </a>
+                <p class="text-muted small mb-3"><?php echo ($q !== "") ? "Try adjusting your search keywords." : "There are no payroll disbursement entries recorded in the system yet."; ?></p>
+                <?php if ($q === "") { ?>
+                    <a href="create.php" class="btn btn-primary btn-sm">
+                        <i class="bi bi-plus-circle me-1"></i>Add First Salary Entry
+                    </a>
+                <?php } ?>
             </div>
         <?php } else { ?>
             <div class="table-responsive">
@@ -297,52 +353,10 @@ require_once "../includes/header.php";
                     </tfoot>
                 </table>
             </div>
+            <?php render_pagination_bar($pagination); ?>
         <?php } ?>
     </div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('salarySearchInput');
-    const tableBody = document.getElementById('salaryTableBody');
-    const noMatchesRow = document.getElementById('noSalaryMatchesRow');
-    const countBadge = document.getElementById('salaryCountBadge');
-
-    if (searchInput && tableBody) {
-        const rows = tableBody.querySelectorAll('.salary-row');
-        const total = rows.length;
-
-        searchInput.addEventListener('input', function() {
-            const query = this.value.trim().toLowerCase();
-            let visibleCount = 0;
-
-            rows.forEach(function(row) {
-                const emp = row.getAttribute('data-employee') || '';
-                const type = row.getAttribute('data-type') || '';
-                const status = row.getAttribute('data-status') || '';
-                const date = row.getAttribute('data-date') || '';
-                const desc = row.getAttribute('data-desc') || '';
-                const id = row.getAttribute('data-id') || '';
-
-                if (query === '' || emp.includes(query) || type.includes(query) || status.includes(query) || date.includes(query) || desc.includes(query) || id.includes(query)) {
-                    row.style.display = '';
-                    visibleCount++;
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-
-            if (noMatchesRow) {
-                noMatchesRow.style.display = (visibleCount === 0 && query !== '') ? '' : 'none';
-            }
-
-            if (countBadge) {
-                countBadge.textContent = query !== '' ? `${visibleCount} of ${total}` : `${total} Records`;
-            }
-        });
-    }
-});
-</script>
 
 <?php
 

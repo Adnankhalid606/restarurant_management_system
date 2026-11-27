@@ -2,9 +2,70 @@
 
 require_once "../config/database.php";
 require_once "../includes/role.php";
+require_once "../includes/pagination.php";
 
 requireRole(["admin"]);
 
+$pg = get_pagination_params(25, [25, 50, 100]);
+$q = trim($_GET["q"] ?? "");
+$status_filter = strtolower(trim($_GET["status"] ?? ""));
+if (!in_array($status_filter, ["", "paid", "partial", "unpaid"], true)) {
+    $status_filter = "";
+}
+
+// 1. Summary KPIs across all purchases
+$kpi_sql = "SELECT
+                COUNT(*) AS total_purchases,
+                COALESCE(SUM(total_amount), 0) AS total_spend,
+                SUM(CASE WHEN LOWER(TRIM(payment_status)) = 'paid' THEN 1 ELSE 0 END) AS paid_count,
+                SUM(CASE WHEN LOWER(TRIM(payment_status)) <> 'paid' THEN 1 ELSE 0 END) AS pending_count
+            FROM purchases";
+$kpi_row = mysqli_fetch_assoc(mysqli_query($conn, $kpi_sql));
+$total_purchases = (int) ($kpi_row['total_purchases'] ?? 0);
+$total_spend = (float) ($kpi_row['total_spend'] ?? 0);
+$paid_count = (int) ($kpi_row['paid_count'] ?? 0);
+$pending_count = (int) ($kpi_row['pending_count'] ?? 0);
+
+// 2. Filtered WHERE clause
+$where_clauses = [];
+$bind_params = [];
+$bind_types = "";
+
+if ($q !== "") {
+    $where_clauses[] = "(COALESCE(suppliers.name, '') LIKE ? OR CAST(purchases.id AS CHAR) LIKE ? OR CAST(purchases.total_amount AS CHAR) LIKE ?)";
+    $like_q = "%" . $q . "%";
+    $bind_params[] = $like_q;
+    $bind_params[] = $like_q;
+    $bind_params[] = $like_q;
+    $bind_types .= "sss";
+}
+
+if ($status_filter !== "") {
+    $where_clauses[] = "LOWER(TRIM(purchases.payment_status)) = ?";
+    $bind_params[] = $status_filter;
+    $bind_types .= "s";
+}
+
+$where_sql = !empty($where_clauses) ? ("WHERE " . implode(" AND ", $where_clauses)) : "";
+
+// 3. Filtered COUNT query
+$count_sql = "SELECT COUNT(*) AS total
+              FROM purchases
+              LEFT JOIN suppliers ON purchases.supplier_id = suppliers.id
+              $where_sql";
+$c_stmt = mysqli_prepare($conn, $count_sql);
+if ($bind_types !== "") {
+    mysqli_stmt_bind_param($c_stmt, $bind_types, ...$bind_params);
+}
+mysqli_stmt_execute($c_stmt);
+$filtered_total = (int) (mysqli_fetch_assoc(mysqli_stmt_get_result($c_stmt))['total'] ?? 0);
+mysqli_stmt_close($c_stmt);
+
+$pagination = finalize_pagination($filtered_total, $pg['page'], $pg['per_page']);
+$limit = $pagination['per_page'];
+$offset = $pagination['offset'];
+
+// 4. Paginated data query
 $sql = "SELECT
             purchases.id,
             suppliers.name AS supplier_name,
@@ -12,35 +73,25 @@ $sql = "SELECT
             purchases.payment_status,
             purchases.purchase_date,
             purchases.created_at
-
         FROM purchases
-
         LEFT JOIN suppliers
             ON purchases.supplier_id = suppliers.id
+        $where_sql
+        ORDER BY purchases.id DESC
+        LIMIT ? OFFSET ?";
 
-        ORDER BY purchases.id DESC";
-
-$result = mysqli_query($conn, $sql);
+$d_stmt = mysqli_prepare($conn, $sql);
+$data_types = $bind_types . "ii";
+$data_params = array_merge($bind_params, [$limit, $offset]);
+mysqli_stmt_bind_param($d_stmt, $data_types, ...$data_params);
+mysqli_stmt_execute($d_stmt);
+$result = mysqli_stmt_get_result($d_stmt);
 
 $purchases = [];
-$total_purchases = 0;
-$total_spend = 0.0;
-$paid_count = 0;
-$pending_count = 0;
-
 while ($purchase = mysqli_fetch_assoc($result)) {
     $purchases[] = $purchase;
-    $total_purchases++;
-    $amount = (float)($purchase["total_amount"] ?? 0);
-    $total_spend += $amount;
-    
-    $status = strtolower(trim($purchase["payment_status"] ?? ""));
-    if ($status === "paid") {
-        $paid_count++;
-    } else {
-        $pending_count++;
-    }
 }
+mysqli_stmt_close($d_stmt);
 
 $page_title = "Purchases Directory";
 $active_menu = "purchases";
@@ -113,32 +164,37 @@ require_once "../includes/header.php";
 <!-- Search & Filter Controls -->
 <div class="pos-card mb-4">
     <div class="pos-card-body p-3">
-        <div class="row g-2 align-items-center justify-content-between">
+        <form method="GET" class="row g-2 align-items-center justify-content-between">
+            <input type="hidden" name="per_page" value="<?php echo (int)$pagination['per_page']; ?>">
+            <input type="hidden" name="page" value="1">
             <div class="col-12 col-md-5">
-                <div class="input-group">
+                <div class="input-group input-group-sm">
                     <span class="input-group-text bg-white border-end-0">
                         <i class="bi bi-search text-muted"></i>
                     </span>
                     <input 
                         type="text" 
+                        name="q"
                         class="form-control pos-form-control border-start-0" 
                         id="purchaseSearch" 
+                        value="<?php echo htmlspecialchars($q, ENT_QUOTES, 'UTF-8'); ?>"
                         placeholder="Search by supplier, reference #, or amount..."
                     >
+                    <button type="submit" class="btn btn-outline-primary">Search</button>
+                    <?php if ($q !== "" || $status_filter !== "") { ?>
+                        <a href="?per_page=<?php echo (int)$pagination['per_page']; ?>" class="btn btn-outline-secondary">Reset</a>
+                    <?php } ?>
                 </div>
             </div>
             <div class="col-12 col-md-auto d-flex align-items-center gap-2">
-                <select id="statusFilter" class="form-select form-select-sm" style="width: auto;">
+                <select name="status" id="statusFilter" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
                     <option value="">All Payment Statuses</option>
-                    <option value="paid">Paid</option>
-                    <option value="partial">Partial</option>
-                    <option value="unpaid">Unpaid</option>
+                    <option value="paid" <?php if ($status_filter === 'paid') echo 'selected'; ?>>Paid</option>
+                    <option value="partial" <?php if ($status_filter === 'partial') echo 'selected'; ?>>Partial</option>
+                    <option value="unpaid" <?php if ($status_filter === 'unpaid') echo 'selected'; ?>>Unpaid</option>
                 </select>
-                <span class="text-muted small">
-                    Showing <strong id="visibleCount"><?php echo $total_purchases; ?></strong> of <?php echo $total_purchases; ?>
-                </span>
             </div>
-        </div>
+        </form>
     </div>
 </div>
 
@@ -153,18 +209,20 @@ require_once "../includes/header.php";
         </span>
     </div>
     <div class="pos-card-body p-0">
-        <?php if ($total_purchases === 0) { ?>
+        <?php if (empty($purchases)) { ?>
             <div class="text-center py-5">
                 <div class="mb-3 text-muted">
                     <i class="bi bi-cart-x fs-1"></i>
                 </div>
                 <h5 class="fw-semibold text-dark">No Purchase Orders Found</h5>
                 <p class="text-muted small mb-3">
-                    Record raw material intake from suppliers to increase inventory stock and track vendor payables.
+                    <?php echo ($q !== "" || $status_filter !== "") ? "Try adjusting your search keywords or payment status filter." : "Record raw material intake from suppliers to increase inventory stock and track vendor payables."; ?>
                 </p>
-                <a href="create.php" class="btn btn-primary btn-sm">
-                    <i class="bi bi-plus-lg me-1"></i> Create First Purchase
-                </a>
+                <?php if ($q === "" && $status_filter === "") { ?>
+                    <a href="create.php" class="btn btn-primary btn-sm">
+                        <i class="bi bi-plus-lg me-1"></i> Create First Purchase
+                    </a>
+                <?php } ?>
             </div>
         <?php } else { ?>
             <div class="table-responsive">
@@ -266,69 +324,10 @@ require_once "../includes/header.php";
                     </tbody>
                 </table>
             </div>
-
-            <!-- Client-side No Results State -->
-            <div id="noSearchResults" class="text-center py-5 d-none">
-                <i class="bi bi-search text-muted fs-2 mb-2 d-block"></i>
-                <div class="fw-semibold text-dark">No matching purchases found</div>
-                <div class="text-muted small">Try adjusting your search keywords or payment status filter</div>
-            </div>
+            <?php render_pagination_bar($pagination); ?>
         <?php } ?>
     </div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const searchInput = document.getElementById('purchaseSearch');
-    const statusFilter = document.getElementById('statusFilter');
-    const tableRows = document.querySelectorAll('.purchase-table-row');
-    const visibleCount = document.getElementById('visibleCount');
-    const noResults = document.getElementById('noSearchResults');
-    const purchasesTable = document.getElementById('purchasesTable');
-
-    function filterPurchases() {
-        const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
-        const selectedStatus = statusFilter ? statusFilter.value.trim().toLowerCase() : '';
-        let matches = 0;
-
-        tableRows.forEach(function (row) {
-            const text = row.textContent.toLowerCase();
-            const rowStatus = row.getAttribute('data-status') || '';
-
-            const matchesText = text.includes(query);
-            const matchesStatus = (selectedStatus === '') || (rowStatus === selectedStatus);
-
-            if (matchesText && matchesStatus) {
-                row.style.display = '';
-                matches++;
-            } else {
-                row.style.display = 'none';
-            }
-        });
-
-        if (visibleCount) {
-            visibleCount.textContent = matches.toString();
-        }
-
-        if (noResults && purchasesTable) {
-            if (matches === 0 && tableRows.length > 0) {
-                noResults.classList.remove('d-none');
-                purchasesTable.classList.add('d-none');
-            } else {
-                noResults.classList.add('d-none');
-                purchasesTable.classList.remove('d-none');
-            }
-        }
-    }
-
-    if (searchInput) {
-        searchInput.addEventListener('input', filterPurchases);
-    }
-    if (statusFilter) {
-        statusFilter.addEventListener('change', filterPurchases);
-    }
-});
-</script>
 
 <?php
 

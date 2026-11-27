@@ -2,62 +2,122 @@
 
 require_once "../config/database.php";
 require_once "../includes/role.php";
+require_once "../includes/pagination.php";
 
 requireRole(["admin", "waiter"]);
 
-$sql = "SELECT
-            bills.id,
-            bills.order_id,
-            bills.invoice_number,
-            bills.subtotal,
-            bills.discount,
-            bills.tax_type,
-            bills.tax_input,
-            bills.tax,
-            bills.total_amount,
-            bills.payment_status,
-            bills.paid_at,
-            bills.created_at,
-            COUNT(ip.id) AS payment_count,
-            COALESCE(SUM(ip.amount), 0) AS total_paid
-        FROM bills
-        LEFT JOIN invoice_payments ip ON bills.id = ip.bill_id
-        GROUP BY bills.id
-        ORDER BY bills.id DESC";
+$pg = get_pagination_params(25, [25, 50, 100]);
+$q = trim($_GET["q"] ?? "");
+$status_filter = trim($_GET["status"] ?? "all");
+if (!in_array($status_filter, ["all", "pending", "partial", "paid"], true)) {
+    $status_filter = "all";
+}
 
-$result = mysqli_query($conn, $sql);
+// 1. Summary KPI totals across all invoices
+$kpi_sql = "SELECT
+                COUNT(*) AS total_count,
+                COALESCE(SUM(bills.total_amount), 0) AS total_billed,
+                COALESCE(SUM(COALESCE(ip.total_paid, 0)), 0) AS total_collected,
+                SUM(CASE WHEN bills.payment_status = 'paid' OR GREATEST(0, ROUND(bills.total_amount - COALESCE(ip.total_paid, 0), 2)) <= 0 THEN 1 ELSE 0 END) AS paid_count,
+                SUM(CASE WHEN bills.payment_status <> 'paid' AND GREATEST(0, ROUND(bills.total_amount - COALESCE(ip.total_paid, 0), 2)) > 0 AND COALESCE(ip.payment_count, 0) > 0 AND COALESCE(ip.total_paid, 0) > 0 THEN 1 ELSE 0 END) AS partial_count
+            FROM bills
+            LEFT JOIN (
+                SELECT bill_id, COUNT(*) AS payment_count, COALESCE(SUM(amount), 0) AS total_paid
+                FROM invoice_payments
+                GROUP BY bill_id
+            ) ip ON bills.id = ip.bill_id";
+$kpi_row = mysqli_fetch_assoc(mysqli_query($conn, $kpi_sql));
+$total_invoices_count = (int) ($kpi_row['total_count'] ?? 0);
+$paid_invoices_count = (int) ($kpi_row['paid_count'] ?? 0);
+$partial_invoices_count = (int) ($kpi_row['partial_count'] ?? 0);
+$pending_invoices_count = max(0, $total_invoices_count - $paid_invoices_count - $partial_invoices_count);
+$total_billed_amount = (float) ($kpi_row['total_billed'] ?? 0);
+$total_collected_amount = (float) ($kpi_row['total_collected'] ?? 0);
+$total_unpaid_balance = max(0.0, round($total_billed_amount - $total_collected_amount, 2));
+
+// 2. Build filtered WHERE clause
+$where_clauses = [];
+$bind_params = [];
+$bind_types = "";
+
+if ($q !== "") {
+    $where_clauses[] = "(COALESCE(bills.invoice_number, CONCAT('INV-', LPAD(bills.id, 5, '0'))) LIKE ? OR CAST(bills.order_id AS CHAR) LIKE ? OR DATE_FORMAT(bills.created_at, '%b %d, %Y') LIKE ?)";
+    $like_q = "%" . $q . "%";
+    $bind_params[] = $like_q;
+    $bind_params[] = $like_q;
+    $bind_params[] = $like_q;
+    $bind_types .= "sss";
+}
+
+if ($status_filter === "paid") {
+    $where_clauses[] = "(bills.payment_status = 'paid' OR GREATEST(0, ROUND(bills.total_amount - COALESCE(ip.total_paid, 0), 2)) <= 0)";
+} elseif ($status_filter === "partial") {
+    $where_clauses[] = "(bills.payment_status <> 'paid' AND GREATEST(0, ROUND(bills.total_amount - COALESCE(ip.total_paid, 0), 2)) > 0 AND COALESCE(ip.payment_count, 0) > 0 AND COALESCE(ip.total_paid, 0) > 0)";
+} elseif ($status_filter === "pending") {
+    $where_clauses[] = "(bills.payment_status <> 'paid' AND GREATEST(0, ROUND(bills.total_amount - COALESCE(ip.total_paid, 0), 2)) > 0 AND (COALESCE(ip.payment_count, 0) = 0 OR COALESCE(ip.total_paid, 0) <= 0))";
+}
+
+$where_sql = !empty($where_clauses) ? ("WHERE " . implode(" AND ", $where_clauses)) : "";
+
+// 3. Filtered COUNT query
+$count_sql = "SELECT COUNT(*) AS total
+              FROM bills
+              LEFT JOIN (
+                  SELECT bill_id, COUNT(*) AS payment_count, COALESCE(SUM(amount), 0) AS total_paid
+                  FROM invoice_payments
+                  GROUP BY bill_id
+              ) ip ON bills.id = ip.bill_id
+              $where_sql";
+$c_stmt = mysqli_prepare($conn, $count_sql);
+if ($bind_types !== "") {
+    mysqli_stmt_bind_param($c_stmt, $bind_types, ...$bind_params);
+}
+mysqli_stmt_execute($c_stmt);
+$filtered_total = (int) (mysqli_fetch_assoc(mysqli_stmt_get_result($c_stmt))['total'] ?? 0);
+mysqli_stmt_close($c_stmt);
+
+$pagination = finalize_pagination($filtered_total, $pg['page'], $pg['per_page']);
+$limit = $pagination['per_page'];
+$offset = $pagination['offset'];
+
+// 4. Paginated data query
+$data_sql = "SELECT
+                bills.id,
+                bills.order_id,
+                bills.invoice_number,
+                bills.subtotal,
+                bills.discount,
+                bills.tax_type,
+                bills.tax_input,
+                bills.tax,
+                bills.total_amount,
+                bills.payment_status,
+                bills.paid_at,
+                bills.created_at,
+                COALESCE(ip.payment_count, 0) AS payment_count,
+                COALESCE(ip.total_paid, 0) AS total_paid
+            FROM bills
+            LEFT JOIN (
+                SELECT bill_id, COUNT(*) AS payment_count, COALESCE(SUM(amount), 0) AS total_paid
+                FROM invoice_payments
+                GROUP BY bill_id
+            ) ip ON bills.id = ip.bill_id
+            $where_sql
+            ORDER BY bills.id DESC
+            LIMIT ? OFFSET ?";
+
+$d_stmt = mysqli_prepare($conn, $data_sql);
+$data_types = $bind_types . "ii";
+$data_params = array_merge($bind_params, [$limit, $offset]);
+mysqli_stmt_bind_param($d_stmt, $data_types, ...$data_params);
+mysqli_stmt_execute($d_stmt);
+$result = mysqli_stmt_get_result($d_stmt);
 
 $invoices = [];
-$total_invoices_count = 0;
-$paid_invoices_count = 0;
-$partial_invoices_count = 0;
-$pending_invoices_count = 0;
-$total_billed_amount = 0.0;
-$total_collected_amount = 0.0;
-$total_unpaid_balance = 0.0;
-
 while ($b = mysqli_fetch_assoc($result)) {
     $invoices[] = $b;
-    $total_invoices_count++;
-    $billed = (float) $b['total_amount'];
-    $paid = (float) $b['total_paid'];
-    $bal = max(0.0, round($billed - $paid, 2));
-
-    $total_billed_amount += $billed;
-    $total_collected_amount += $paid;
-    $total_unpaid_balance += $bal;
-
-    $is_fully_paid = ($b['payment_status'] === 'paid' || $bal <= 0);
-    $has_partial = (!$is_fully_paid && (int)$b['payment_count'] > 0 && $paid > 0);
-
-    if ($is_fully_paid) {
-        $paid_invoices_count++;
-    } elseif ($has_partial) {
-        $partial_invoices_count++;
-    } else {
-        $pending_invoices_count++;
-    }
 }
+mysqli_stmt_close($d_stmt);
 
 // Fetch active payment methods for quick payment collection modal
 $methods_res = mysqli_query($conn, "SELECT id, name, classification FROM payment_methods WHERE status = 'active' ORDER BY name ASC");
@@ -158,7 +218,10 @@ require_once "../includes/header.php";
 <!-- Search and Filter Bar -->
 <div class="pos-card mb-4">
     <div class="pos-card-body p-3">
-        <div class="row g-2 align-items-center">
+        <form method="GET" class="row g-2 align-items-center">
+            <input type="hidden" name="status" value="<?php echo htmlspecialchars($status_filter, ENT_QUOTES, 'UTF-8'); ?>">
+            <input type="hidden" name="per_page" value="<?php echo (int)$pagination['per_page']; ?>">
+            <input type="hidden" name="page" value="1">
             <div class="col-12 col-md-5">
                 <div class="input-group input-group-sm">
                     <span class="input-group-text bg-light border-end-0">
@@ -166,21 +229,27 @@ require_once "../includes/header.php";
                     </span>
                     <input 
                         type="text" 
+                        name="q"
                         id="invoiceSearchInput" 
                         class="form-control pos-form-control border-start-0" 
+                        value="<?php echo htmlspecialchars($q, ENT_QUOTES, 'UTF-8'); ?>"
                         placeholder="Search by invoice #, order #, or date..."
                     >
+                    <button type="submit" class="btn btn-outline-primary">Search</button>
+                    <?php if ($q !== "" || $status_filter !== "all") { ?>
+                        <a href="?per_page=<?php echo (int)$pagination['per_page']; ?>" class="btn btn-outline-secondary">Reset</a>
+                    <?php } ?>
                 </div>
             </div>
             <div class="col-12 col-md-7 text-md-end">
                 <div class="btn-group btn-group-sm flex-wrap" role="group" id="statusFilterGroup">
-                    <button type="button" class="btn btn-outline-secondary active" data-filter="all">All (<?php echo $total_invoices_count; ?>)</button>
-                    <button type="button" class="btn btn-outline-secondary" data-filter="pending">Pending (<?php echo $pending_invoices_count; ?>)</button>
-                    <button type="button" class="btn btn-outline-secondary" data-filter="partial">Partial (<?php echo $partial_invoices_count; ?>)</button>
-                    <button type="button" class="btn btn-outline-secondary" data-filter="paid">Paid (<?php echo $paid_invoices_count; ?>)</button>
+                    <a href="<?php echo htmlspecialchars(build_pagination_url(['status' => 'all', 'page' => 1]), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-secondary <?php echo ($status_filter === 'all') ? 'active' : ''; ?>">All (<?php echo $total_invoices_count; ?>)</a>
+                    <a href="<?php echo htmlspecialchars(build_pagination_url(['status' => 'pending', 'page' => 1]), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-secondary <?php echo ($status_filter === 'pending') ? 'active' : ''; ?>">Pending (<?php echo $pending_invoices_count; ?>)</a>
+                    <a href="<?php echo htmlspecialchars(build_pagination_url(['status' => 'partial', 'page' => 1]), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-secondary <?php echo ($status_filter === 'partial') ? 'active' : ''; ?>">Partial (<?php echo $partial_invoices_count; ?>)</a>
+                    <a href="<?php echo htmlspecialchars(build_pagination_url(['status' => 'paid', 'page' => 1]), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-secondary <?php echo ($status_filter === 'paid') ? 'active' : ''; ?>">Paid (<?php echo $paid_invoices_count; ?>)</a>
                 </div>
             </div>
-        </div>
+        </form>
     </div>
 </div>
 
@@ -329,6 +398,7 @@ require_once "../includes/header.php";
                 </tbody>
             </table>
         </div>
+        <?php render_pagination_bar($pagination); ?>
     <?php } ?>
 </div>
 
@@ -337,43 +407,6 @@ $payment_modal_action = 'pay.php';
 $payment_modal_return_to = 'index';
 require_once "../includes/payment-modal.php";
 ?>
-
-<script>
-// Client-side quick filter
-document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('invoiceSearchInput');
-    const filterButtons = document.querySelectorAll('#statusFilterGroup button');
-    let currentFilter = 'all';
-
-    function filterTable() {
-        const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
-        const rows = document.querySelectorAll('#invoicesTable tbody tr');
-
-        rows.forEach(row => {
-            const rowStatus = row.getAttribute('data-status') || '';
-            const rowText = row.innerText.toLowerCase();
-
-            const matchesStatus = (currentFilter === 'all') || (rowStatus === currentFilter);
-            const matchesQuery = !query || rowText.includes(query);
-
-            row.style.display = (matchesStatus && matchesQuery) ? '' : 'none';
-        });
-    }
-
-    if (searchInput) {
-        searchInput.addEventListener('input', filterTable);
-    }
-
-    filterButtons.forEach(btn => {
-        btn.addEventListener('click', function() {
-            filterButtons.forEach(b => b.classList.remove('active'));
-            this.classList.add('active');
-            currentFilter = this.getAttribute('data-filter');
-            filterTable();
-        });
-    });
-});
-</script>
 
 <?php
 require_once "../includes/footer.php";

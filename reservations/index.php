@@ -2,9 +2,61 @@
 
 require_once "../config/database.php";
 require_once "../includes/role.php";
+require_once "../includes/pagination.php";
 
 requireRole(["admin", "waiter"]);
 
+$pg = get_pagination_params(25, [25, 50, 100]);
+$status_filter = trim($_GET["status"] ?? "all");
+if (!in_array($status_filter, ["all", "confirmed", "pending", "completed", "cancelled"], true)) {
+    $status_filter = "all";
+}
+
+// 1. Summary KPI counts across all reservations
+$counts = [
+    'all' => 0,
+    'confirmed' => 0,
+    'pending' => 0,
+    'completed' => 0,
+    'cancelled' => 0
+];
+$kpi_res = mysqli_query($conn, "SELECT status, COUNT(*) AS cnt FROM reservations GROUP BY status");
+if ($kpi_res) {
+    while ($kr = mysqli_fetch_assoc($kpi_res)) {
+        $st = $kr['status'] ?? 'pending';
+        $c = (int) $kr['cnt'];
+        $counts['all'] += $c;
+        if (isset($counts[$st])) {
+            $counts[$st] = $c;
+        }
+    }
+}
+
+// 2. Filtered WHERE clause
+$where_sql = "";
+$bind_params = [];
+$bind_types = "";
+if ($status_filter !== "all") {
+    $where_sql = "WHERE reservations.status = ?";
+    $bind_params[] = $status_filter;
+    $bind_types = "s";
+}
+
+// 3. Filtered COUNT query
+$count_sql = "SELECT COUNT(*) AS total FROM reservations $where_sql";
+$c_stmt = mysqli_prepare($conn, $count_sql);
+if ($bind_types !== "") {
+    mysqli_stmt_bind_param($c_stmt, $bind_types, ...$bind_params);
+}
+mysqli_stmt_execute($c_stmt);
+$filtered_total = (int) (mysqli_fetch_assoc(mysqli_stmt_get_result($c_stmt))['total'] ?? 0);
+mysqli_stmt_close($c_stmt);
+
+$pagination = finalize_pagination($filtered_total, $pg['page'], $pg['per_page']);
+$limit = $pagination['per_page'];
+$offset = $pagination['offset'];
+
+// 4. Paginated data query (stable secondary sort by reservations.id ASC)
 $sql = "SELECT
             reservations.id,
             customers.name AS customer_name,
@@ -15,38 +67,30 @@ $sql = "SELECT
             reservations.guests,
             reservations.status,
             reservations.created_at
-
         FROM reservations
-
         JOIN customers
             ON reservations.customer_id = customers.id
-
         JOIN restaurant_tables
             ON reservations.table_id = restaurant_tables.id
-
+        $where_sql
         ORDER BY
             reservations.reservation_date ASC,
-            reservations.reservation_time ASC";
+            reservations.reservation_time ASC,
+            reservations.id ASC
+        LIMIT ? OFFSET ?";
 
-$result = mysqli_query($conn, $sql);
+$d_stmt = mysqli_prepare($conn, $sql);
+$data_types = $bind_types . "ii";
+$data_params = array_merge($bind_params, [$limit, $offset]);
+mysqli_stmt_bind_param($d_stmt, $data_types, ...$data_params);
+mysqli_stmt_execute($d_stmt);
+$result = mysqli_stmt_get_result($d_stmt);
 
 $reservations = [];
-$counts = [
-    'all' => 0,
-    'confirmed' => 0,
-    'pending' => 0,
-    'completed' => 0,
-    'cancelled' => 0
-];
-
 while ($row = mysqli_fetch_assoc($result)) {
     $reservations[] = $row;
-    $counts['all']++;
-    $st = $row['status'] ?? 'pending';
-    if (isset($counts[$st])) {
-        $counts[$st]++;
-    }
 }
+mysqli_stmt_close($d_stmt);
 
 $page_title = "Reservations";
 $active_menu = "reservations";
@@ -120,21 +164,21 @@ require_once "../includes/header.php";
 <div class="pos-card mb-4">
     <div class="p-3 d-flex flex-wrap align-items-center justify-content-between gap-3">
         <div class="btn-group btn-group-sm" role="group" id="reservationFilterGroup">
-            <button type="button" class="btn btn-outline-secondary active" data-filter="all">
+            <a href="<?php echo htmlspecialchars(build_pagination_url(['status' => 'all', 'page' => 1]), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-secondary <?php echo ($status_filter === 'all') ? 'active' : ''; ?>">
                 All Bookings (<?php echo $counts['all']; ?>)
-            </button>
-            <button type="button" class="btn btn-outline-secondary" data-filter="confirmed">
+            </a>
+            <a href="<?php echo htmlspecialchars(build_pagination_url(['status' => 'confirmed', 'page' => 1]), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-secondary <?php echo ($status_filter === 'confirmed') ? 'active' : ''; ?>">
                 Confirmed (<?php echo $counts['confirmed']; ?>)
-            </button>
-            <button type="button" class="btn btn-outline-secondary" data-filter="pending">
+            </a>
+            <a href="<?php echo htmlspecialchars(build_pagination_url(['status' => 'pending', 'page' => 1]), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-secondary <?php echo ($status_filter === 'pending') ? 'active' : ''; ?>">
                 Pending (<?php echo $counts['pending']; ?>)
-            </button>
-            <button type="button" class="btn btn-outline-secondary" data-filter="completed">
+            </a>
+            <a href="<?php echo htmlspecialchars(build_pagination_url(['status' => 'completed', 'page' => 1]), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-secondary <?php echo ($status_filter === 'completed') ? 'active' : ''; ?>">
                 Completed (<?php echo $counts['completed']; ?>)
-            </button>
-            <button type="button" class="btn btn-outline-secondary" data-filter="cancelled">
+            </a>
+            <a href="<?php echo htmlspecialchars(build_pagination_url(['status' => 'cancelled', 'page' => 1]), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-outline-secondary <?php echo ($status_filter === 'cancelled') ? 'active' : ''; ?>">
                 Cancelled (<?php echo $counts['cancelled']; ?>)
-            </button>
+            </a>
         </div>
 
         <div class="small text-muted">
@@ -244,32 +288,8 @@ require_once "../includes/header.php";
                 </tbody>
             </table>
         </div>
+        <?php render_pagination_bar($pagination); ?>
     </div>
-
-    <!-- Client-side filter script for Reservations -->
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const filterButtons = document.querySelectorAll('#reservationFilterGroup button');
-        const rows = document.querySelectorAll('#reservationsTable tbody tr');
-
-        filterButtons.forEach(btn => {
-            btn.addEventListener('click', function() {
-                filterButtons.forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-
-                const filter = this.getAttribute('data-filter');
-
-                rows.forEach(row => {
-                    if (filter === 'all' || row.getAttribute('data-status') === filter) {
-                        row.classList.remove('d-none');
-                    } else {
-                        row.classList.add('d-none');
-                    }
-                });
-            });
-        });
-    });
-    </script>
 <?php } ?>
 
 <?php

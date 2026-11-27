@@ -2,13 +2,30 @@
 
 require_once "../config/database.php";
 require_once "../includes/role.php";
+require_once "../includes/pagination.php";
 
 requireRole(["admin", "waiter"]);
 
+$pg = get_pagination_params(25, [25, 50, 100]);
 
+// Count total orders for pagination
+$count_sql = "SELECT COUNT(*) AS total FROM orders";
+if ($_SESSION["role"] === "waiter") {
+    $count_sql .= " WHERE orders.waiter_id = ?";
+    $c_stmt = mysqli_prepare($conn, $count_sql);
+    mysqli_stmt_bind_param($c_stmt, "i", $_SESSION["user_id"]);
+} else {
+    $c_stmt = mysqli_prepare($conn, $count_sql);
+}
+mysqli_stmt_execute($c_stmt);
+$total_orders = (int) (mysqli_fetch_assoc(mysqli_stmt_get_result($c_stmt))['total'] ?? 0);
+mysqli_stmt_close($c_stmt);
 
-// Get Orders with linked invoice and payment totals
+$pagination = finalize_pagination($total_orders, $pg['page'], $pg['per_page']);
+$limit = $pagination['per_page'];
+$offset = $pagination['offset'];
 
+// Get Orders with linked invoice and payment totals (paginated)
 $sql = "SELECT
             orders.id,
             customers.name AS customer_name,
@@ -57,16 +74,16 @@ $sql = "SELECT
 
 if ($_SESSION["role"] === "waiter") {
 
-    $sql .= " WHERE orders.waiter_id = ?";
-
-    $sql .= " ORDER BY orders.id DESC";
+    $sql .= " WHERE orders.waiter_id = ? ORDER BY orders.id DESC LIMIT ? OFFSET ?";
 
     $stmt = mysqli_prepare($conn, $sql);
 
     mysqli_stmt_bind_param(
         $stmt,
-        "i",
-        $_SESSION["user_id"]
+        "iii",
+        $_SESSION["user_id"],
+        $limit,
+        $offset
     );
 
     mysqli_stmt_execute($stmt);
@@ -76,11 +93,12 @@ if ($_SESSION["role"] === "waiter") {
 } else {
 
     // Admin Can See All Orders
-   
+    $sql .= " ORDER BY orders.id DESC LIMIT ? OFFSET ?";
 
-    $sql .= " ORDER BY orders.id DESC";
-
-    $result = mysqli_query($conn, $sql);
+    $stmt = mysqli_prepare($conn, $sql);
+    mysqli_stmt_bind_param($stmt, "ii", $limit, $offset);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
 }
 
 $page_title = "Orders";
@@ -310,6 +328,7 @@ require_once "../includes/header.php";
                     </tbody>
                 </table>
             </div>
+            <?php render_pagination_bar($pagination); ?>
         <?php } ?>
     </div>
 </div>

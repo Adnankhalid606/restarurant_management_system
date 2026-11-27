@@ -2,37 +2,89 @@
 
 require_once "../config/database.php";
 require_once "../includes/role.php";
+require_once "../includes/pagination.php";
 
 requireRole(["admin"]);
 
-$sql = "SELECT *
-        FROM expenses
-        ORDER BY expense_date DESC, id DESC";
+$pg = get_pagination_params(25, [25, 50, 100]);
+$q = trim($_GET["q"] ?? "");
+$head_filter = trim($_GET["head"] ?? "");
 
-$result = mysqli_query($conn, $sql);
-
-$expenses = [];
-$total_expenses = 0;
-$total_amount = 0.0;
-$heads_count = [];
+// 1. Summary KPIs across all expenses
 $current_month = date('Y-m');
-$current_month_total = 0.0;
+$kpi_stmt = mysqli_prepare($conn, "SELECT COUNT(*) AS total_expenses, COALESCE(SUM(amount), 0) AS total_amount, COALESCE(SUM(CASE WHEN DATE_FORMAT(expense_date, '%Y-%m') = ? THEN amount ELSE 0 END), 0) AS current_month_total FROM expenses");
+mysqli_stmt_bind_param($kpi_stmt, "s", $current_month);
+mysqli_stmt_execute($kpi_stmt);
+$kpi_row = mysqli_fetch_assoc(mysqli_stmt_get_result($kpi_stmt));
+mysqli_stmt_close($kpi_stmt);
 
-while ($expense = mysqli_fetch_assoc($result)) {
-    $expenses[] = $expense;
-    $total_expenses++;
-    $amt = (float)($expense["amount"] ?? 0);
-    $total_amount += $amt;
-    
-    $head = trim($expense["expense_head"] ?? "");
-    if ($head !== "") {
-        $heads_count[$head] = ($heads_count[$head] ?? 0) + 1;
-    }
-    
-    if (!empty($expense["expense_date"]) && substr($expense["expense_date"], 0, 7) === $current_month) {
-        $current_month_total += $amt;
+$total_expenses = (int) ($kpi_row['total_expenses'] ?? 0);
+$total_amount = (float) ($kpi_row['total_amount'] ?? 0);
+$current_month_total = (float) ($kpi_row['current_month_total'] ?? 0);
+
+// Distinct expense heads for dropdown
+$heads_count = [];
+$heads_res = mysqli_query($conn, "SELECT expense_head, COUNT(*) AS cnt FROM expenses WHERE expense_head IS NOT NULL AND TRIM(expense_head) <> '' GROUP BY expense_head ORDER BY expense_head ASC");
+if ($heads_res) {
+    while ($hr = mysqli_fetch_assoc($heads_res)) {
+        $heads_count[$hr['expense_head']] = (int) $hr['cnt'];
     }
 }
+
+// 2. Filtered WHERE clause
+$where_clauses = [];
+$bind_params = [];
+$bind_types = "";
+
+if ($q !== "") {
+    $where_clauses[] = "(expense_head LIKE ? OR description LIKE ? OR CAST(amount AS CHAR) LIKE ?)";
+    $like_q = "%" . $q . "%";
+    $bind_params[] = $like_q;
+    $bind_params[] = $like_q;
+    $bind_params[] = $like_q;
+    $bind_types .= "sss";
+}
+
+if ($head_filter !== "") {
+    $where_clauses[] = "expense_head = ?";
+    $bind_params[] = $head_filter;
+    $bind_types .= "s";
+}
+
+$where_sql = !empty($where_clauses) ? ("WHERE " . implode(" AND ", $where_clauses)) : "";
+
+// 3. Filtered COUNT query
+$count_sql = "SELECT COUNT(*) AS total FROM expenses $where_sql";
+$c_stmt = mysqli_prepare($conn, $count_sql);
+if ($bind_types !== "") {
+    mysqli_stmt_bind_param($c_stmt, $bind_types, ...$bind_params);
+}
+mysqli_stmt_execute($c_stmt);
+$filtered_total = (int) (mysqli_fetch_assoc(mysqli_stmt_get_result($c_stmt))['total'] ?? 0);
+mysqli_stmt_close($c_stmt);
+
+$pagination = finalize_pagination($filtered_total, $pg['page'], $pg['per_page']);
+$limit = $pagination['per_page'];
+$offset = $pagination['offset'];
+
+// 4. Paginated data query
+$sql = "SELECT *
+        FROM expenses
+        $where_sql
+        ORDER BY expense_date DESC, id DESC
+        LIMIT ? OFFSET ?";
+$d_stmt = mysqli_prepare($conn, $sql);
+$data_types = $bind_types . "ii";
+$data_params = array_merge($bind_params, [$limit, $offset]);
+mysqli_stmt_bind_param($d_stmt, $data_types, ...$data_params);
+mysqli_stmt_execute($d_stmt);
+$result = mysqli_stmt_get_result($d_stmt);
+
+$expenses = [];
+while ($expense = mysqli_fetch_assoc($result)) {
+    $expenses[] = $expense;
+}
+mysqli_stmt_close($d_stmt);
 
 $page_title = "Expenses Register";
 $active_menu = "expenses";
@@ -105,34 +157,39 @@ require_once "../includes/header.php";
 <!-- Search & Controls Bar -->
 <div class="pos-card mb-4">
     <div class="pos-card-body p-3">
-        <div class="row g-2 align-items-center justify-content-between">
+        <form method="GET" class="row g-2 align-items-center justify-content-between">
+            <input type="hidden" name="per_page" value="<?php echo (int)$pagination['per_page']; ?>">
+            <input type="hidden" name="page" value="1">
             <div class="col-12 col-md-5">
-                <div class="input-group">
+                <div class="input-group input-group-sm">
                     <span class="input-group-text bg-white border-end-0">
                         <i class="bi bi-search text-muted"></i>
                     </span>
                     <input 
                         type="text" 
+                        name="q"
                         class="form-control pos-form-control border-start-0" 
                         id="expenseSearch" 
+                        value="<?php echo htmlspecialchars($q, ENT_QUOTES, 'UTF-8'); ?>"
                         placeholder="Search by expense head, particulars, or amount..."
                     >
+                    <button type="submit" class="btn btn-outline-primary">Search</button>
+                    <?php if ($q !== "" || $head_filter !== "") { ?>
+                        <a href="?per_page=<?php echo (int)$pagination['per_page']; ?>" class="btn btn-outline-secondary">Reset</a>
+                    <?php } ?>
                 </div>
             </div>
             <div class="col-12 col-md-auto d-flex align-items-center gap-2">
-                <select id="headFilter" class="form-select form-select-sm" style="width: auto;">
+                <select name="head" id="headFilter" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
                     <option value="">All Expense Heads</option>
                     <?php foreach (array_keys($heads_count) as $h) { ?>
-                        <option value="<?php echo htmlspecialchars($h, ENT_QUOTES, 'UTF-8'); ?>">
+                        <option value="<?php echo htmlspecialchars($h, ENT_QUOTES, 'UTF-8'); ?>" <?php if ($head_filter === $h) echo 'selected'; ?>>
                             <?php echo htmlspecialchars($h, ENT_QUOTES, 'UTF-8'); ?>
                         </option>
                     <?php } ?>
                 </select>
-                <span class="text-muted small">
-                    Showing <strong id="visibleCount"><?php echo $total_expenses; ?></strong> of <?php echo $total_expenses; ?>
-                </span>
             </div>
-        </div>
+        </form>
     </div>
 </div>
 
@@ -147,18 +204,20 @@ require_once "../includes/header.php";
         </span>
     </div>
     <div class="pos-card-body p-0">
-        <?php if ($total_expenses === 0) { ?>
+        <?php if (empty($expenses)) { ?>
             <div class="text-center py-5">
                 <div class="mb-3 text-muted">
                     <i class="bi bi-wallet2 fs-1"></i>
                 </div>
-                <h5 class="fw-semibold text-dark">No Expenses Recorded</h5>
+                <h5 class="fw-semibold text-dark">No Expenses Found</h5>
                 <p class="text-muted small mb-3">
-                    Log utility payments, kitchen fuel, maintenance, packaging, or petty cash expenses to monitor operational overheads.
+                    <?php echo ($q !== "" || $head_filter !== "") ? "Try adjusting your search keywords or category filter." : "Log utility payments, kitchen fuel, maintenance, packaging, or petty cash expenses to monitor operational overheads."; ?>
                 </p>
-                <a href="create.php" class="btn btn-primary btn-sm">
-                    <i class="bi bi-plus-lg me-1"></i> Record First Expense
-                </a>
+                <?php if ($q === "" && $head_filter === "") { ?>
+                    <a href="create.php" class="btn btn-primary btn-sm">
+                        <i class="bi bi-plus-lg me-1"></i> Record First Expense
+                    </a>
+                <?php } ?>
             </div>
         <?php } else { ?>
             <div class="table-responsive">
@@ -248,69 +307,10 @@ require_once "../includes/header.php";
                     </tfoot>
                 </table>
             </div>
-
-            <!-- Client-side No Results State -->
-            <div id="noSearchResults" class="text-center py-5 d-none">
-                <i class="bi bi-search text-muted fs-2 mb-2 d-block"></i>
-                <div class="fw-semibold text-dark">No matching expenses found</div>
-                <div class="text-muted small">Try adjusting your search keywords or category filter</div>
-            </div>
+            <?php render_pagination_bar($pagination); ?>
         <?php } ?>
     </div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const searchInput = document.getElementById('expenseSearch');
-    const headFilter = document.getElementById('headFilter');
-    const tableRows = document.querySelectorAll('.expense-table-row');
-    const visibleCount = document.getElementById('visibleCount');
-    const noResults = document.getElementById('noSearchResults');
-    const expensesTable = document.getElementById('expensesTable');
-
-    function filterExpenses() {
-        const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
-        const selectedHead = headFilter ? headFilter.value.trim().toLowerCase() : '';
-        let matches = 0;
-
-        tableRows.forEach(function (row) {
-            const text = row.textContent.toLowerCase();
-            const rowHead = (row.getAttribute('data-head') || '').toLowerCase();
-
-            const matchesText = text.includes(query);
-            const matchesHead = (selectedHead === '') || (rowHead === selectedHead);
-
-            if (matchesText && matchesHead) {
-                row.style.display = '';
-                matches++;
-            } else {
-                row.style.display = 'none';
-            }
-        });
-
-        if (visibleCount) {
-            visibleCount.textContent = matches.toString();
-        }
-
-        if (noResults && expensesTable) {
-            if (matches === 0 && tableRows.length > 0) {
-                noResults.classList.remove('d-none');
-                expensesTable.classList.add('d-none');
-            } else {
-                noResults.classList.add('d-none');
-                expensesTable.classList.remove('d-none');
-            }
-        }
-    }
-
-    if (searchInput) {
-        searchInput.addEventListener('input', filterExpenses);
-    }
-    if (headFilter) {
-        headFilter.addEventListener('change', filterExpenses);
-    }
-});
-</script>
 
 <?php
 
