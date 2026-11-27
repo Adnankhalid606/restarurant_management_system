@@ -36,6 +36,14 @@ function isItemActive($key, $script_name, $active_menu) {
         return strpos($script_name, '/inventory/') !== false && in_array($current_file, $adjustment_files, true);
     }
 
+    if ($key === 'invoices') {
+        return strpos($script_name, '/invoices/') !== false || strpos($script_name, '/bills/') !== false;
+    }
+
+    if ($key === 'payment_methods') {
+        return strpos($script_name, '/payment-methods/') !== false;
+    }
+
     if (!empty($active_menu) && $active_menu === $key) {
         return true;
     }
@@ -149,18 +157,24 @@ function isItemActive($key, $script_name, $active_menu) {
             </a>
         <?php } ?>
 
-        <!-- Finance & Accounting Group (Admin & Waiter for Bills) -->
+        <!-- Finance & Accounting Group (Admin & Waiter for Invoices) -->
         <?php if ($role === "admin" || $role === "waiter") { ?>
             <div class="nav-group-title">Finance &amp; Ledgers</div>
 
-            <a href="<?php echo $base_path; ?>bills/index.php" 
-               class="sidebar-link <?php echo isItemActive('bills', $script_name, $active_menu) ? 'active' : ''; ?>">
-                <i class="bi bi-cash-stack"></i>
-                <span>Bills &amp; Payments</span>
+            <a href="<?php echo $base_path; ?>invoices/index.php" 
+               class="sidebar-link <?php echo isItemActive('invoices', $script_name, $active_menu) ? 'active' : ''; ?>">
+                <i class="bi bi-receipt-cutoff"></i>
+                <span>Invoices</span>
             </a>
         <?php } ?>
 
         <?php if ($role === "admin") { ?>
+            <a href="<?php echo $base_path; ?>payment-methods/index.php" 
+               class="sidebar-link <?php echo isItemActive('payment_methods', $script_name, $active_menu) ? 'active' : ''; ?>">
+                <i class="bi bi-credit-card"></i>
+                <span>Payment Methods</span>
+            </a>
+
             <a href="<?php echo $base_path; ?>expenses/index.php" 
                class="sidebar-link <?php echo isItemActive('expenses', $script_name, $active_menu) ? 'active' : ''; ?>">
                 <i class="bi bi-wallet2"></i>

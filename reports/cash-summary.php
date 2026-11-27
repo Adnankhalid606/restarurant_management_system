@@ -12,15 +12,13 @@ requireRole(["admin"]);
 $from = $_GET["from"] ?? date("Y-m-01");
 $to = $_GET["to"] ?? date("Y-m-d");
 
-// 1. Customer Receipts (Cash Inflow from settled guest bills based on paid_at)
+// 1. Customer Receipts (Cash Inflow from settled customer invoices based on payment_date)
 $sales_sql = "
     SELECT 
-        COALESCE(SUM(bills.total_amount), 0) AS total_receipts,
-        COUNT(bills.id) AS bill_count
-    FROM bills
-    WHERE bills.payment_status = 'paid'
-    AND bills.paid_at IS NOT NULL
-    AND DATE(bills.paid_at) BETWEEN ? AND ?
+        COALESCE(SUM(amount), 0) AS total_receipts,
+        COUNT(DISTINCT bill_id) AS bill_count
+    FROM invoice_payments
+    WHERE DATE(payment_date) BETWEEN ? AND ?
 ";
 $sales_stmt = mysqli_prepare($conn, $sales_sql);
 mysqli_stmt_bind_param($sales_stmt, "ss", $from, $to);

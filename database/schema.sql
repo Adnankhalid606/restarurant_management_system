@@ -30,6 +30,7 @@ SET time_zone = "+00:00";
 CREATE TABLE `bills` (
   `id` int(11) NOT NULL,
   `order_id` int(11) NOT NULL,
+  `invoice_number` varchar(50) DEFAULT NULL,
   `subtotal` decimal(10,2) NOT NULL,
   `discount` decimal(10,2) DEFAULT 0.00,
   `tax_type` enum('manual','percentage') NOT NULL DEFAULT 'manual',
@@ -38,6 +39,41 @@ CREATE TABLE `bills` (
   `total_amount` decimal(10,2) NOT NULL,
   `payment_status` enum('unpaid','paid') DEFAULT 'unpaid',
   `paid_at` datetime DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `payment_methods`
+--
+
+CREATE TABLE `payment_methods` (
+  `id` int(11) NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `classification` enum('Cash','Bank Transfer','Mobile Wallet','Card','Other') NOT NULL DEFAULT 'Other',
+  `status` enum('active','inactive') NOT NULL DEFAULT 'active',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `invoice_payments`
+--
+
+CREATE TABLE `invoice_payments` (
+  `id` int(11) NOT NULL,
+  `bill_id` int(11) NOT NULL,
+  `payment_method_id` int(11) DEFAULT NULL,
+  `payment_method_name` varchar(100) NOT NULL,
+  `classification` enum('Cash','Bank Transfer','Mobile Wallet','Card','Other') NOT NULL DEFAULT 'Other',
+  `amount` decimal(10,2) NOT NULL,
+  `payment_date` datetime NOT NULL,
+  `transaction_ref` varchar(100) DEFAULT NULL,
+  `notes` varchar(255) DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -329,7 +365,27 @@ INSERT INTO `users` (`id`, `name`, `username`, `email`, `password`, `role`, `is_
 ALTER TABLE `bills`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `uq_bill_order_id` (`order_id`),
+  ADD UNIQUE KEY `uk_bills_invoice_number` (`invoice_number`),
   ADD KEY `order_id` (`order_id`);
+
+--
+-- Indexes for table `payment_methods`
+--
+ALTER TABLE `payment_methods`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uk_payment_method_name` (`name`),
+  ADD KEY `idx_payment_method_status` (`status`),
+  ADD KEY `idx_payment_method_class` (`classification`);
+
+--
+-- Indexes for table `invoice_payments`
+--
+ALTER TABLE `invoice_payments`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_inv_payments_bill_id` (`bill_id`),
+  ADD KEY `idx_inv_payments_method_id` (`payment_method_id`),
+  ADD KEY `idx_inv_payments_created_by` (`created_by`),
+  ADD KEY `idx_inv_payments_date` (`payment_date`);
 
 --
 -- Indexes for table `customers`
@@ -570,6 +626,14 @@ ALTER TABLE `users`
 --
 ALTER TABLE `bills`
   ADD CONSTRAINT `bills_ibfk_1` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `invoice_payments`
+--
+ALTER TABLE `invoice_payments`
+  ADD CONSTRAINT `fk_inv_payments_bill_id` FOREIGN KEY (`bill_id`) REFERENCES `bills` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_inv_payments_method_id` FOREIGN KEY (`payment_method_id`) REFERENCES `payment_methods` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_inv_payments_user_id` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `inventory_transactions`

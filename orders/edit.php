@@ -2,6 +2,7 @@
 
 require_once "../config/database.php";
 require_once "../includes/role.php";
+require_once "../includes/helpers.php";
 
 requireRole(["admin", "waiter"]);
 
@@ -177,12 +178,42 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         die("Security Notice: Completed orders cannot be cancelled. Kitchen fulfillment and inventory consumption have already been finalized.");
     }
 
-    // Integrity Safeguard: An order with a paid bill cannot be cancelled
+    // Query linked bill and payments if status change involves cancellation or demotion from ready
+    $linked_bill = null;
+    $payment_count = 0;
+    $total_paid = 0.0;
+
+    $bill_stmt = mysqli_prepare($conn, "SELECT id, invoice_number, payment_status, total_amount FROM bills WHERE order_id = ?");
+    mysqli_stmt_bind_param($bill_stmt, "i", $id);
+    mysqli_stmt_execute($bill_stmt);
+    $bill_res = mysqli_stmt_get_result($bill_stmt);
+    if ($bill_res && $b_row = mysqli_fetch_assoc($bill_res)) {
+        $linked_bill = $b_row;
+        $pay_stmt = mysqli_prepare($conn, "SELECT COUNT(*) AS payment_count, COALESCE(SUM(amount), 0) AS total_paid FROM invoice_payments WHERE bill_id = ?");
+        mysqli_stmt_bind_param($pay_stmt, "i", $linked_bill['id']);
+        mysqli_stmt_execute($pay_stmt);
+        $pay_res = mysqli_stmt_get_result($pay_stmt);
+        if ($pay_res && $pay_row = mysqli_fetch_assoc($pay_res)) {
+            $payment_count = (int) ($pay_row['payment_count'] ?? 0);
+            $total_paid = (float) ($pay_row['total_paid'] ?? 0);
+        }
+        mysqli_stmt_close($pay_stmt);
+    }
+    mysqli_stmt_close($bill_stmt);
+
+    $inv_label = ($linked_bill && !empty($linked_bill['invoice_number'])) ? $linked_bill['invoice_number'] : ($linked_bill ? ('Bill #' . $linked_bill['id']) : 'Invoice');
+
+    // Integrity Safeguard: An order with recorded payments cannot be cancelled
     if ($status === "cancelled") {
-        $check_bill = mysqli_query($conn, "SELECT id, payment_status FROM bills WHERE order_id = " . (int)$id . " LIMIT 1");
-        $b_row = mysqli_fetch_assoc($check_bill);
-        if ($b_row && $b_row["payment_status"] === "paid") {
-            die("Security Notice: Cannot cancel Order #$id because an associated paid invoice exists.");
+        if ($payment_count > 0 || $total_paid > 0 || ($linked_bill && $linked_bill["payment_status"] === "paid") || $order["payment_status"] === "paid") {
+            die("Security Notice: Cannot cancel Order #$id because recorded payments exist on $inv_label. A payment reversal or refund must be processed through an authorized accounting workflow before cancellation.");
+        }
+    }
+
+    // Integrity Safeguard: An order in ready status with recorded payments cannot be demoted to pending or preparing
+    if ($order["status"] === "ready" && in_array($status, ["pending", "preparing"], true)) {
+        if ($payment_count > 0 || $total_paid > 0 || ($linked_bill && $linked_bill["payment_status"] === "paid")) {
+            die("Security Notice: Cannot revert Order #$id to " . ucfirst($status) . " because recorded payments exist on $inv_label. A payment reversal or refund must be processed through an authorized accounting workflow before modifying status.");
         }
     }
 
@@ -232,7 +263,23 @@ try {
             mysqli_stmt_execute($stmt);
         }
 
+        // If an unpaid draft bill exists with 0 payments, safely delete it
+        if ($linked_bill && $payment_count === 0) {
+            $del_stmt = mysqli_prepare($conn, "DELETE FROM bills WHERE id = ?");
+            mysqli_stmt_bind_param($del_stmt, "i", $linked_bill['id']);
+            mysqli_stmt_execute($del_stmt);
+            mysqli_stmt_close($del_stmt);
+        }
+
     } else {
+
+        // If demoting from ready to pending/preparing with 0 payments, delete draft bill
+        if ($order["status"] === "ready" && in_array($status, ["pending", "preparing"], true) && $linked_bill && $payment_count === 0) {
+            $del_stmt = mysqli_prepare($conn, "DELETE FROM bills WHERE id = ?");
+            mysqli_stmt_bind_param($del_stmt, "i", $linked_bill['id']);
+            mysqli_stmt_execute($del_stmt);
+            mysqli_stmt_close($del_stmt);
+        }
 
         // Check new table
 
@@ -341,6 +388,10 @@ try {
 
     mysqli_stmt_execute($stmt);
 
+    // Automatically generate customer invoice if order transitioned to ready or completed
+    if ($status === 'ready' || $status === 'completed') {
+        ensureOrderInvoice($conn, $id);
+    }
 
     mysqli_commit($conn);
 
@@ -357,6 +408,29 @@ try {
 
 $page_title = "Edit Order #" . $id;
 $active_menu = "orders";
+
+// Fetch linked bill and payment status for UI restrictions
+$ui_linked_bill = null;
+$ui_payment_count = 0;
+$ui_total_paid = 0.0;
+$bill_check_stmt = mysqli_prepare($conn, "SELECT id, invoice_number, payment_status, total_amount FROM bills WHERE order_id = ?");
+mysqli_stmt_bind_param($bill_check_stmt, "i", $id);
+mysqli_stmt_execute($bill_check_stmt);
+$bill_check_res = mysqli_stmt_get_result($bill_check_stmt);
+if ($bill_check_res && $b_row = mysqli_fetch_assoc($bill_check_res)) {
+    $ui_linked_bill = $b_row;
+    $p_stmt = mysqli_prepare($conn, "SELECT COUNT(*) AS payment_count, COALESCE(SUM(amount), 0) AS total_paid FROM invoice_payments WHERE bill_id = ?");
+    mysqli_stmt_bind_param($p_stmt, "i", $ui_linked_bill['id']);
+    mysqli_stmt_execute($p_stmt);
+    $p_res = mysqli_stmt_get_result($p_stmt);
+    if ($p_res && $p_row = mysqli_fetch_assoc($p_res)) {
+        $ui_payment_count = (int) ($p_row['payment_count'] ?? 0);
+        $ui_total_paid = (float) ($p_row['total_paid'] ?? 0);
+    }
+    mysqli_stmt_close($p_stmt);
+}
+mysqli_stmt_close($bill_check_stmt);
+$has_recorded_payments = ($ui_payment_count > 0 || $ui_total_paid > 0 || ($ui_linked_bill && $ui_linked_bill['payment_status'] === 'paid') || $order['payment_status'] === 'paid');
 
 require_once "../includes/header.php";
 
@@ -479,6 +553,23 @@ require_once "../includes/header.php";
                             <input type="hidden" name="status" value="completed">
                             <input type="text" class="form-control pos-form-control bg-light text-muted" value="Completed (Locked)" readonly>
                             <small class="text-muted d-block mt-1">Completed orders are finalized for kitchen fulfillment and financial accounting.</small>
+                        <?php } elseif ($order["status"] === "ready" && $has_recorded_payments) { ?>
+                            <select name="status" id="orderStatus" class="form-select pos-form-control" required>
+                                <option value="ready" selected>Ready</option>
+                                <option value="completed">Completed</option>
+                            </select>
+                            <div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">
+                                <i class="bi bi-lock-fill me-1"></i> Status cannot be demoted or cancelled because payments have been recorded on <?php echo htmlspecialchars($ui_linked_bill['invoice_number'] ?? 'the invoice', ENT_QUOTES, 'UTF-8'); ?>.
+                            </div>
+                        <?php } elseif ($order["status"] === "ready") { ?>
+                            <select name="status" id="orderStatus" class="form-select pos-form-control" required>
+                                <option value="pending">Pending</option>
+                                <option value="preparing">Preparing</option>
+                                <option value="ready" selected>Ready</option>
+                                <option value="completed">Completed</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                            <small class="text-muted d-block mt-1"><i class="bi bi-info-circle me-1"></i>Reverting to Pending/Preparing or Cancelling will remove the uncollected draft invoice.</small>
                         <?php } else { ?>
                             <select name="status" id="orderStatus" class="form-select pos-form-control" required>
                                 <option value="pending" <?php if ($order["status"] === "pending") echo "selected"; ?>>
@@ -490,9 +581,14 @@ require_once "../includes/header.php";
                                 <option value="ready" <?php if ($order["status"] === "ready") echo "selected"; ?>>
                                     Ready
                                 </option>
-                                <option value="cancelled" <?php if ($order["status"] === "cancelled") echo "selected"; ?>>
-                                    Cancelled
+                                <option value="completed" <?php if ($order["status"] === "completed") echo "selected"; ?>>
+                                    Completed
                                 </option>
+                                <?php if (!$has_recorded_payments) { ?>
+                                    <option value="cancelled" <?php if ($order["status"] === "cancelled") echo "selected"; ?>>
+                                        Cancelled
+                                    </option>
+                                <?php } ?>
                             </select>
                             <small class="text-muted d-block mt-1">Cancelling an order automatically releases any occupied dining table.</small>
                         <?php } ?>

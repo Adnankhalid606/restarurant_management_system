@@ -112,7 +112,7 @@ if (!function_exists('get_app_base_path')) {
 
         // Fallback using script path deduction
         $script_dir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
-        $app_dir = preg_replace('#/(auth|bills|customers|customer-ledger|expenses|inventory|kitchen|menu|orders|purchases|recipes|reports|reservations|salary|supplier-ledger|suppliers|table|users)(/.*)?$#i', '', $script_dir);
+        $app_dir = preg_replace('#/(auth|bills|invoices|payment-methods|customers|customer-ledger|expenses|inventory|kitchen|menu|orders|purchases|recipes|reports|reservations|salary|supplier-ledger|suppliers|table|users)(/.*)?$#i', '', $script_dir);
         return '/' . trim($app_dir, '/') . '/';
     }
 }
@@ -390,6 +390,121 @@ if (!function_exists('formatQuantityUom')) {
         }
         $formatted = number_format($val, $decimals);
         return rtrim(rtrim($formatted, '0'), '.');
+    }
+}
+
+if (!function_exists('ensureOrderInvoice')) {
+    /**
+     * Ensure an invoice exists for an order that has reached 'ready' or 'completed' status.
+     * Idempotent and concurrency-safe: returns existing invoice if already present.
+     *
+     * @param mysqli $conn
+     * @param int $order_id
+     * @return array|null Returns the invoice associative array or null if order not eligible
+     */
+    function ensureOrderInvoice($conn, $order_id) {
+        $order_id = (int) $order_id;
+        if ($order_id <= 0) {
+            return null;
+        }
+
+        // 1. Check if invoice already exists
+        $chk_stmt = mysqli_prepare($conn, "SELECT id, order_id, invoice_number, subtotal, discount, tax_type, tax_input, tax, total_amount, payment_status, created_at FROM bills WHERE order_id = ? LIMIT 1");
+        if (!$chk_stmt) {
+            throw new Exception("Database prepare error: " . mysqli_error($conn));
+        }
+        mysqli_stmt_bind_param($chk_stmt, "i", $order_id);
+        mysqli_stmt_execute($chk_stmt);
+        $res = mysqli_stmt_get_result($chk_stmt);
+        $existing = mysqli_fetch_assoc($res);
+        if ($existing) {
+            if (empty($existing['invoice_number'])) {
+                $existing['invoice_number'] = 'INV-' . str_pad($existing['id'], 5, '0', STR_PAD_LEFT);
+            }
+            return $existing;
+        }
+
+        // 2. Verify order status is eligible ('ready' or 'completed')
+        $ord_stmt = mysqli_prepare($conn, "SELECT id, status, payment_status, total_amount FROM orders WHERE id = ? LIMIT 1");
+        if (!$ord_stmt) {
+            throw new Exception("Database prepare error: " . mysqli_error($conn));
+        }
+        mysqli_stmt_bind_param($ord_stmt, "i", $order_id);
+        mysqli_stmt_execute($ord_stmt);
+        $ord_res = mysqli_stmt_get_result($ord_stmt);
+        $order = mysqli_fetch_assoc($ord_res);
+
+        if (!$order || !in_array($order["status"], ["ready", "completed"], true)) {
+            return null;
+        }
+
+        // 3. Compute accurate subtotal from order items
+        $items_stmt = mysqli_prepare($conn, "SELECT COALESCE(SUM(subtotal), 0) AS subtotal FROM order_items WHERE order_id = ?");
+        if (!$items_stmt) {
+            throw new Exception("Database prepare error: " . mysqli_error($conn));
+        }
+        mysqli_stmt_bind_param($items_stmt, "i", $order_id);
+        mysqli_stmt_execute($items_stmt);
+        $items_res = mysqli_stmt_get_result($items_stmt);
+        $items_row = mysqli_fetch_assoc($items_res);
+        $items_subtotal = (float) $items_row["subtotal"];
+
+        $subtotal = round($items_subtotal > 0 ? $items_subtotal : (float) $order["total_amount"], 2);
+
+        // 4. Initial values for newly generated invoice (before first payment collection)
+        $discount = 0.00;
+        $tax_type = "percentage";
+        $tax_input = 0.00;
+        $tax = 0.00;
+        $total_amount = $subtotal;
+        $payment_status = "unpaid";
+
+        // 5. Insert invoice record
+        $ins_sql = "INSERT INTO bills 
+                    (order_id, invoice_number, subtotal, discount, tax_type, tax_input, tax, total_amount, payment_status, created_at)
+                    VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, NOW())";
+        $ins_stmt = mysqli_prepare($conn, $ins_sql);
+        if (!$ins_stmt) {
+            throw new Exception("Database prepare error: " . mysqli_error($conn));
+        }
+        mysqli_stmt_bind_param($ins_stmt, "iddsddds", $order_id, $subtotal, $discount, $tax_type, $tax_input, $tax, $total_amount, $payment_status);
+
+        if (!mysqli_stmt_execute($ins_stmt)) {
+            // Check if duplicate order_id (race condition safely caught)
+            $chk_again = mysqli_prepare($conn, "SELECT id, order_id, invoice_number, subtotal, discount, tax_type, tax_input, tax, total_amount, payment_status, created_at FROM bills WHERE order_id = ? LIMIT 1");
+            mysqli_stmt_bind_param($chk_again, "i", $order_id);
+            mysqli_stmt_execute($chk_again);
+            $dup_res = mysqli_stmt_get_result($chk_again);
+            $dup_invoice = mysqli_fetch_assoc($dup_res);
+            if ($dup_invoice) {
+                if (empty($dup_invoice['invoice_number'])) {
+                    $dup_invoice['invoice_number'] = 'INV-' . str_pad($dup_invoice['id'], 5, '0', STR_PAD_LEFT);
+                }
+                return $dup_invoice;
+            }
+            throw new Exception("Automatic invoice generation failed for Order #$order_id: " . mysqli_error($conn));
+        }
+
+        $bill_id = mysqli_insert_id($conn);
+        $invoice_number = 'INV-' . str_pad($bill_id, 5, '0', STR_PAD_LEFT);
+
+        $upd_stmt = mysqli_prepare($conn, "UPDATE bills SET invoice_number = ? WHERE id = ?");
+        mysqli_stmt_bind_param($upd_stmt, "si", $invoice_number, $bill_id);
+        mysqli_stmt_execute($upd_stmt);
+
+        return [
+            'id' => $bill_id,
+            'order_id' => $order_id,
+            'invoice_number' => $invoice_number,
+            'subtotal' => $subtotal,
+            'discount' => $discount,
+            'tax_type' => $tax_type,
+            'tax_input' => $tax_input,
+            'tax' => $tax,
+            'total_amount' => $total_amount,
+            'payment_status' => $payment_status,
+            'created_at' => date('Y-m-d H:i:s')
+        ];
     }
 }
 

@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/helpers.php';
 
 if (!function_exists('transitionKitchenOrderStatus')) {
     /**
@@ -29,8 +30,8 @@ if (!function_exists('transitionKitchenOrderStatus')) {
             return ['success' => false, 'message' => 'Invalid status requested.'];
         }
 
-        // Fetch order with current status and table
-        $sql = "SELECT id, table_id, status FROM orders WHERE id = ?";
+        // Fetch order with current status, payment_status and table
+        $sql = "SELECT id, table_id, status, payment_status FROM orders WHERE id = ?";
         $stmt = mysqli_prepare($conn, $sql);
         if (!$stmt) {
             return ['success' => false, 'message' => 'Database error preparing query.'];
@@ -74,6 +75,37 @@ if (!function_exists('transitionKitchenOrderStatus')) {
         mysqli_begin_transaction($conn);
 
         try {
+            // Protect order cancellation against active payments and orphaned invoices
+            if ($target_status === 'cancelled') {
+                $bill_stmt = mysqli_prepare($conn, "SELECT id, invoice_number, payment_status, total_amount FROM bills WHERE order_id = ? FOR UPDATE");
+                mysqli_stmt_bind_param($bill_stmt, "i", $order_id);
+                mysqli_stmt_execute($bill_stmt);
+                $linked_bill = mysqli_fetch_assoc(mysqli_stmt_get_result($bill_stmt));
+
+                if ($linked_bill) {
+                    $inv_label = !empty($linked_bill['invoice_number']) ? $linked_bill['invoice_number'] : ('Invoice #' . $linked_bill['id']);
+
+                    // Check if any payment records exist in invoice_payments
+                    $pay_stmt = mysqli_prepare($conn, "SELECT COUNT(*) AS payment_count, COALESCE(SUM(amount), 0) AS total_paid FROM invoice_payments WHERE bill_id = ?");
+                    mysqli_stmt_bind_param($pay_stmt, "i", $linked_bill['id']);
+                    mysqli_stmt_execute($pay_stmt);
+                    $pay_data = mysqli_fetch_assoc(mysqli_stmt_get_result($pay_stmt));
+                    $payment_count = (int) $pay_data['payment_count'];
+                    $total_paid = (float) $pay_data['total_paid'];
+
+                    if ($payment_count > 0 || $total_paid > 0 || $linked_bill['payment_status'] === 'paid' || $order['payment_status'] === 'paid') {
+                        throw new Exception("Cannot cancel Order #$order_id: Recorded payments exist on $inv_label (Rs. " . number_format($total_paid, 2) . " collected). A payment reversal/refund must be handled through an authorized process before cancellation.");
+                    }
+
+                    // Invoice exists with zero payments: safely remove uncollected invoice within same transaction
+                    $del_bill_stmt = mysqli_prepare($conn, "DELETE FROM bills WHERE id = ?");
+                    mysqli_stmt_bind_param($del_bill_stmt, "i", $linked_bill['id']);
+                    if (!mysqli_stmt_execute($del_bill_stmt)) {
+                        throw new Exception("Failed to remove uncollected invoice for Order #$order_id: " . mysqli_error($conn));
+                    }
+                }
+            }
+
             // If completing the order, consume inventory according to recipe requirements
             if ($target_status === 'completed') {
                 $sql = "SELECT order_items.menu_item_id, order_items.quantity, menu_items.name AS menu_item_name
@@ -164,7 +196,7 @@ if (!function_exists('transitionKitchenOrderStatus')) {
                             (raw_material_id, type, quantity, unit_cost, total_cost, reference_type, reference_id, created_by, notes)
                             VALUES (?, 'consumption', ?, ?, ?, 'order', ?, ?, 'Kitchen order completion')";
                     $stmt = mysqli_prepare($conn, $sql);
-                    mysqli_stmt_bind_param($stmt, 'idddiii', $raw_material_id, $required_qty, $unit_cost, $total_cost, $order_id, $acting_user_id);
+                    mysqli_stmt_bind_param($stmt, 'idddii', $raw_material_id, $required_qty, $unit_cost, $total_cost, $order_id, $acting_user_id);
                     mysqli_stmt_execute($stmt);
                 }
             }
@@ -174,6 +206,11 @@ if (!function_exists('transitionKitchenOrderStatus')) {
             $stmt = mysqli_prepare($conn, $sql);
             mysqli_stmt_bind_param($stmt, 'si', $target_status, $order_id);
             mysqli_stmt_execute($stmt);
+
+            // Automatically generate customer invoice if order transitioned to ready or completed
+            if ($target_status === 'ready' || $target_status === 'completed') {
+                ensureOrderInvoice($conn, $order_id);
+            }
 
             // Release dining table if completed or cancelled
             if (($target_status === 'completed' || $target_status === 'cancelled') && !empty($order['table_id'])) {

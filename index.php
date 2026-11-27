@@ -67,9 +67,9 @@ require_once "./includes/header.php";
                 <i class="bi bi-grid-3x3-gap"></i>
                 <span>Dining Tables</span>
             </a>
-            <a href="./bills/index.php" class="btn btn-outline-secondary btn-sm dashboard-action-btn">
-                <i class="bi bi-cash-stack"></i>
-                <span>View Bills</span>
+            <a href="./invoices/index.php" class="btn btn-outline-secondary btn-sm dashboard-action-btn">
+                <i class="bi bi-receipt-cutoff"></i>
+                <span>Invoices</span>
             </a>
         <?php } elseif ($role === "kitchen") { ?>
             <a href="./kitchen/index.php" class="btn btn-primary btn-sm dashboard-action-btn">
@@ -196,8 +196,14 @@ require_once "./includes/header.php";
                 <div class="pos-card-body p-2">
                     <ul class="module-nav-list">
                         <li class="module-nav-item">
-                            <a href="./bills/index.php" class="module-nav-link">
-                                <span class="nav-item-left"><i class="bi bi-cash-stack"></i><span>Bills &amp; Payments</span></span>
+                            <a href="./invoices/index.php" class="module-nav-link">
+                                <span class="nav-item-left"><i class="bi bi-receipt-cutoff"></i><span>Customer Invoices</span></span>
+                                <span class="nav-item-right"><i class="bi bi-chevron-right"></i></span>
+                            </a>
+                        </li>
+                        <li class="module-nav-item">
+                            <a href="./payment-methods/index.php" class="module-nav-link">
+                                <span class="nav-item-left"><i class="bi bi-credit-card"></i><span>Payment Methods</span></span>
                                 <span class="nav-item-right"><i class="bi bi-chevron-right"></i></span>
                             </a>
                         </li>
@@ -296,8 +302,8 @@ require_once "./includes/header.php";
                             </a>
                         </li>
                         <li class="module-nav-item">
-                            <a href="./bills/index.php" class="module-nav-link">
-                                <span class="nav-item-left"><i class="bi bi-cash-stack"></i><span>Bills &amp; Invoices</span></span>
+                            <a href="./invoices/index.php" class="module-nav-link">
+                                <span class="nav-item-left"><i class="bi bi-receipt-cutoff"></i><span>Customer Invoices</span></span>
                                 <span class="nav-item-right"><i class="bi bi-chevron-right"></i></span>
                             </a>
                         </li>

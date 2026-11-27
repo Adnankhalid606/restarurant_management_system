@@ -44,8 +44,8 @@ try {
         throw new Exception("Record not found or invalid identifier.");
     }
 
-    // 2. Financial History Safeguard: Check if any bill exists for this order
-    $check_bill_sql = "SELECT id, payment_status, total_amount FROM bills WHERE order_id = ? LIMIT 1 FOR UPDATE";
+    // 2. Financial History Safeguard: Check if any bill/invoice exists for this order
+    $check_bill_sql = "SELECT id, invoice_number, payment_status, total_amount FROM bills WHERE order_id = ? LIMIT 1 FOR UPDATE";
     $check_bill_stmt = mysqli_prepare($conn, $check_bill_sql);
     mysqli_stmt_bind_param($check_bill_stmt, "i", $id);
     mysqli_stmt_execute($check_bill_stmt);
@@ -53,10 +53,11 @@ try {
     $linked_bill = mysqli_fetch_assoc($bill_res);
 
     if ($linked_bill) {
+        $inv_label = !empty($linked_bill["invoice_number"]) ? $linked_bill["invoice_number"] : "Invoice #" . $linked_bill["id"];
         if ($linked_bill["payment_status"] === "paid" || $order["payment_status"] === "paid") {
-            throw new Exception("Cannot delete Order #$id: A paid invoice (#Bill-" . $linked_bill["id"] . ") exists. Financial audit records cannot be deleted.");
+            throw new Exception("Cannot delete Order #$id: A paid invoice ($inv_label) exists. Financial audit records cannot be deleted.");
         }
-        throw new Exception("Cannot delete Order #$id: An existing invoice (#Bill-" . $linked_bill["id"] . ") is linked to this order. Please cancel or remove the bill first.");
+        throw new Exception("Cannot delete Order #$id: An existing invoice ($inv_label) is linked to this order. Please cancel or delete the invoice first.");
     }
 
     // Direct check on order payment status

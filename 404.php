@@ -102,9 +102,9 @@ $requested_path = htmlspecialchars($_SERVER['REQUEST_URI'] ?? '', ENT_QUOTES, 'U
                             </a>
                         </div>
                         <div class="col-6 col-sm-4">
-                            <a href="<?php echo $base_path; ?>bills/index.php" class="btn btn-light border text-dark w-100 text-start small d-flex align-items-center gap-2 py-2">
-                                <i class="bi bi-credit-card text-success"></i>
-                                <span>Billing</span>
+                            <a href="<?php echo $base_path; ?>invoices/index.php" class="btn btn-light border text-dark w-100 text-start small d-flex align-items-center gap-2 py-2">
+                                <i class="bi bi-receipt-cutoff text-success"></i>
+                                <span>Invoices</span>
                             </a>
                         </div>
                         <div class="col-6 col-sm-4">
