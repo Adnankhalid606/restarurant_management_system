@@ -7,7 +7,7 @@ requireRole(["admin", "waiter"]);
 
 
 
-// Get Orders
+// Get Orders with linked invoice and payment totals
 
 $sql = "SELECT
             orders.id,
@@ -18,7 +18,18 @@ $sql = "SELECT
             orders.status,
             orders.payment_status,
             orders.total_amount,
-            orders.created_at
+            orders.created_at,
+            bills.id AS bill_id,
+            bills.invoice_number,
+            bills.subtotal AS bill_subtotal,
+            bills.discount AS bill_discount,
+            bills.tax_type AS bill_tax_type,
+            bills.tax_input AS bill_tax_input,
+            bills.tax AS bill_tax,
+            bills.total_amount AS bill_total_amount,
+            bills.payment_status AS bill_payment_status,
+            COALESCE(ip.payment_count, 0) AS invoice_payment_count,
+            COALESCE(ip.total_paid, 0) AS invoice_total_paid
 
         FROM orders
 
@@ -29,7 +40,17 @@ $sql = "SELECT
             ON orders.table_id = restaurant_tables.id
 
         LEFT JOIN users
-            ON orders.waiter_id = users.id";
+            ON orders.waiter_id = users.id
+
+        LEFT JOIN bills
+            ON bills.order_id = orders.id
+
+        LEFT JOIN (
+            SELECT bill_id, COUNT(*) AS payment_count, COALESCE(SUM(amount), 0) AS total_paid
+            FROM invoice_payments
+            GROUP BY bill_id
+        ) ip
+            ON ip.bill_id = bills.id";
 
 
 // Waiter Can Only See Their Own Orders
@@ -65,9 +86,32 @@ if ($_SESSION["role"] === "waiter") {
 $page_title = "Orders";
 $active_menu = "orders";
 
+// Fetch active payment methods for the shared Collect Payment modal
+$active_methods = [];
+$pm_res = mysqli_query($conn, "SELECT id, name, classification FROM payment_methods WHERE status = 'active' ORDER BY classification ASC, name ASC");
+if ($pm_res) {
+    while ($m = mysqli_fetch_assoc($pm_res)) {
+        $active_methods[] = $m;
+    }
+}
+
 require_once "../includes/header.php";
 
 ?>
+
+<?php if (isset($_SESSION["flash_success"])) { ?>
+    <div class="alert alert-success border py-2 px-3 mb-4 small d-flex align-items-center gap-2">
+        <i class="bi bi-check-circle-fill fs-5 flex-shrink-0 text-success"></i>
+        <div><?php echo htmlspecialchars($_SESSION["flash_success"], ENT_QUOTES, 'UTF-8'); unset($_SESSION["flash_success"]); ?></div>
+    </div>
+<?php } ?>
+
+<?php if (isset($_SESSION["error"])) { ?>
+    <div class="alert alert-danger border py-2 px-3 mb-4 small d-flex align-items-center gap-2">
+        <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 text-danger"></i>
+        <div><?php echo htmlspecialchars($_SESSION["error"], ENT_QUOTES, 'UTF-8'); unset($_SESSION["error"]); ?></div>
+    </div>
+<?php } ?>
 
 <!-- Page Header Bar -->
 <div class="page-header-bar">
@@ -120,7 +164,7 @@ require_once "../includes/header.php";
                             <th>Status</th>
                             <th>Payment</th>
                             <th>Placed At</th>
-                            <th class="text-end" style="width: 120px;">Actions</th>
+                            <th class="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -182,14 +226,30 @@ require_once "../includes/header.php";
                                 </td>
                                 <td>
                                     <?php
-                                    $pay_class = match($order["payment_status"]) {
+                                    $has_invoice = !empty($order["bill_id"]);
+                                    $inv_num = !empty($order["invoice_number"])
+                                        ? $order["invoice_number"]
+                                        : ($has_invoice ? ('INV-' . str_pad((int)$order["bill_id"], 5, '0', STR_PAD_LEFT)) : '');
+                                    $bill_total = round((float) ($order["bill_total_amount"] ?? 0), 2);
+                                    $paid_amt = round((float) ($order["invoice_total_paid"] ?? 0), 2);
+                                    $balance = max(0.0, round($bill_total - $paid_amt, 2));
+                                    $is_fully_paid = $has_invoice && ($order["bill_payment_status"] === "paid" || $balance <= 0);
+
+                                    $effective_pay_status = $order["payment_status"];
+                                    if ($has_invoice && !$is_fully_paid && (int)$order["invoice_payment_count"] > 0 && $paid_amt > 0) {
+                                        $effective_pay_status = "partial";
+                                    } elseif ($is_fully_paid) {
+                                        $effective_pay_status = "paid";
+                                    }
+
+                                    $pay_class = match($effective_pay_status) {
                                         'paid' => 'badge-status-paid',
                                         'partial' => 'badge-status-partial',
                                         default => 'badge-status-unpaid',
                                     };
                                     ?>
                                     <span class="badge-subtle <?php echo $pay_class; ?> text-capitalize">
-                                        <?php echo htmlspecialchars($order["payment_status"], ENT_QUOTES, 'UTF-8'); ?>
+                                        <?php echo htmlspecialchars($effective_pay_status, ENT_QUOTES, 'UTF-8'); ?>
                                     </span>
                                 </td>
                                 <td>
@@ -198,7 +258,36 @@ require_once "../includes/header.php";
                                     </span>
                                 </td>
                                 <td>
-                                    <div class="d-flex align-items-center justify-content-end gap-1">
+                                    <div class="d-flex align-items-center justify-content-end gap-1 text-nowrap">
+                                        <?php if ($order["status"] !== "cancelled" && $has_invoice) { ?>
+                                            <?php if ($is_fully_paid) { ?>
+                                                <span class="badge-subtle badge-status-paid py-1 px-2 small d-inline-flex align-items-center gap-1" title="Invoice <?php echo htmlspecialchars($inv_num, ENT_QUOTES, 'UTF-8'); ?> is fully paid">
+                                                    <i class="bi bi-check2-circle"></i>
+                                                    <span>Paid</span>
+                                                </span>
+                                            <?php } else { ?>
+                                                <button type="button"
+                                                        class="btn btn-sm btn-outline-success py-1 px-2"
+                                                        title="Collect Payment &middot; <?php echo htmlspecialchars($inv_num, ENT_QUOTES, 'UTF-8'); ?>"
+                                                        aria-label="Collect Payment for <?php echo htmlspecialchars($inv_num, ENT_QUOTES, 'UTF-8'); ?>"
+                                                        onclick="openPaymentCollectionModal(<?php echo htmlspecialchars(json_encode([
+                                                            'id' => (int)$order['bill_id'],
+                                                            'invoice_number' => $inv_num,
+                                                            'order_id' => (int)$order['id'],
+                                                            'subtotal' => (float)($order['bill_subtotal'] ?? $bill_total),
+                                                            'discount' => (float)($order['bill_discount'] ?? 0),
+                                                            'tax_type' => $order['bill_tax_type'] ?? 'percentage',
+                                                            'tax_input' => (float)($order['bill_tax_input'] ?? 0),
+                                                            'tax' => (float)($order['bill_tax'] ?? 0),
+                                                            'total_amount' => $bill_total,
+                                                            'total_paid' => $paid_amt,
+                                                            'balance' => $balance,
+                                                            'payment_count' => (int)$order['invoice_payment_count']
+                                                        ]), ENT_QUOTES, 'UTF-8'); ?>)">
+                                                    <i class="bi bi-wallet2"></i>
+                                                </button>
+                                            <?php } ?>
+                                        <?php } ?>
                                         <a href="view.php?id=<?php echo $order["id"]; ?>" class="btn btn-sm btn-outline-secondary py-1 px-2" title="View Order Details">
                                             <i class="bi bi-eye"></i>
                                         </a>
@@ -226,6 +315,10 @@ require_once "../includes/header.php";
 </div>
 
 <?php
+
+$payment_modal_action = "../invoices/pay.php";
+$payment_modal_return_to = "orders";
+require_once "../includes/payment-modal.php";
 
 require_once "../includes/footer.php";
 

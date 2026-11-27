@@ -24,11 +24,17 @@ $notes = trim($_POST["notes"] ?? "");
 $return_to = trim($_POST["return_to"] ?? "");
 $acting_user_id = (int) ($_SESSION["user_id"] ?? 0);
 
-$redirect_target = ($return_to === "view" && $id > 0) ? "view.php?id=" . $id : "index.php";
+if ($return_to === "view" && $id > 0) {
+    $redirect_target = "view.php?id=" . $id;
+} elseif ($return_to === "orders") {
+    $redirect_target = "../orders/index.php";
+} else {
+    $redirect_target = "index.php";
+}
 
 if ($id <= 0) {
     $_SESSION["error"] = "Invalid invoice identifier.";
-    header("Location: index.php");
+    header("Location: " . ($return_to === "orders" ? "../orders/index.php" : "index.php"));
     exit;
 }
 
