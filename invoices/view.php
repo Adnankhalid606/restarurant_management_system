@@ -173,6 +173,10 @@ require_once "../includes/header.php";
             <i class="bi bi-printer"></i>
             <span>Print Invoice</span>
         </button>
+        <button type="button" onclick="triggerThermalPrint()" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1">
+            <i class="bi bi-printer"></i>
+            <span>Thermal Print</span>
+        </button>
         <?php if (!$is_fully_paid) { ?>
             <button type="button" class="btn btn-success btn-sm d-inline-flex align-items-center gap-1 shadow-sm px-3" data-bs-toggle="modal" data-bs-target="#payModal">
                 <i class="bi bi-cash-stack"></i>
@@ -1145,6 +1149,48 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 <?php } ?>
+
+<?php
+$thermal_items = [];
+foreach ($order_items_list as $it) {
+    $thermal_items[] = [
+        'name' => $it['menu_item_name'],
+        'quantity' => $it['quantity'],
+        'unit_price' => $it['unit_price'],
+        'subtotal' => $it['subtotal']
+    ];
+}
+$thermal_tax_label = 'Tax / Surcharge';
+if ((float)$invoice["tax"] > 0 || (float)$invoice["tax_input"] > 0) {
+    $thermal_tax_label .= (($invoice["tax_type"] ?? "") === "percentage" && isset($invoice["tax_input"]))
+        ? " (" . rtrim(rtrim(number_format((float)$invoice["tax_input"], 2), '0'), '.') . "%)"
+        : " (Fixed)";
+}
+$thermal_receipt = [
+    'mode' => 'invoice',
+    'title' => 'Official Dining Receipt & Tax Invoice',
+    'doc_number' => $display_invoice_number,
+    'doc_date' => formatDateTime($invoice["created_at"]),
+    'order_ref' => '#ORD-' . (int)$invoice["order_id"],
+    'customer_name' => $invoice["customer_name"] ?? 'Walk-in Guest',
+    'customer_phone' => $invoice["customer_phone"] ?? '',
+    'order_type' => ucwords(str_replace('_', ' ', $invoice["order_type"])),
+    'table_number' => $invoice["table_number"] ?? '',
+    'waiter_name' => $invoice["waiter_name"] ?? '',
+    'payment_status_label' => $is_fully_paid ? 'Paid in Full' : ($is_partial ? 'Partially Paid' : 'Unpaid'),
+    'items' => $thermal_items,
+    'subtotal' => (float)$invoice["subtotal"],
+    'discount' => (float)$invoice["discount"],
+    'tax' => (float)$invoice["tax"],
+    'tax_label' => $thermal_tax_label,
+    'grand_total' => $grand_total,
+    'show_payments' => true,
+    'total_paid' => $total_paid,
+    'balance_due' => $balance_due,
+    'payments' => $payments
+];
+require_once "../includes/thermal-receipt.php";
+?>
 
 <?php
 require_once "../includes/footer.php";

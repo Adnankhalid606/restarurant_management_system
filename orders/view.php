@@ -25,6 +25,7 @@ $sql = "SELECT
             orders.id,
             orders.waiter_id,
             customers.name AS customer_name,
+            customers.phone AS customer_phone,
             restaurant_tables.table_number,
             users.name AS waiter_name,
             orders.order_type,
@@ -112,6 +113,36 @@ mysqli_stmt_bind_param(
 mysqli_stmt_execute($stmt);
 
 $items = mysqli_stmt_get_result($stmt);
+$order_items_list = [];
+while ($item_row = mysqli_fetch_assoc($items)) {
+    $order_items_list[] = $item_row;
+}
+
+// Check if order has a linked invoice and actual recorded payments (read-only)
+$linked_bill = null;
+$linked_payments = [];
+$linked_paid_total = 0.0;
+$bill_stmt = mysqli_prepare($conn, "SELECT id, invoice_number, subtotal, discount, tax_type, tax_input, tax, total_amount, payment_status FROM bills WHERE order_id = ? LIMIT 1");
+if ($bill_stmt) {
+    mysqli_stmt_bind_param($bill_stmt, "i", $id);
+    mysqli_stmt_execute($bill_stmt);
+    $linked_bill = mysqli_fetch_assoc(mysqli_stmt_get_result($bill_stmt));
+    mysqli_stmt_close($bill_stmt);
+}
+if ($linked_bill) {
+    $pay_stmt = mysqli_prepare($conn, "SELECT payment_date, payment_method_name, amount, transaction_ref FROM invoice_payments WHERE bill_id = ? ORDER BY payment_date ASC, id ASC");
+    if ($pay_stmt) {
+        mysqli_stmt_bind_param($pay_stmt, "i", $linked_bill['id']);
+        mysqli_stmt_execute($pay_stmt);
+        $pay_res = mysqli_stmt_get_result($pay_stmt);
+        while ($pr = mysqli_fetch_assoc($pay_res)) {
+            $linked_payments[] = $pr;
+            $linked_paid_total += (float)$pr['amount'];
+        }
+        mysqli_stmt_close($pay_stmt);
+    }
+}
+$linked_paid_total = round($linked_paid_total, 2);
 
 $page_title = "Order #" . $id;
 $active_menu = "orders";
@@ -135,7 +166,7 @@ $pay_class = match($order["payment_status"]) {
 ?>
 
 <!-- Page Header Bar -->
-<div class="page-header-bar">
+<div class="page-header-bar d-print-none">
     <div>
         <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
             <h2 class="page-header-title">Order #<?php echo $id; ?></h2>
@@ -163,10 +194,14 @@ $pay_class = match($order["payment_status"]) {
             <i class="bi bi-printer"></i>
             <span>Print Ticket</span>
         </button>
+        <button type="button" onclick="triggerThermalPrint()" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1">
+            <i class="bi bi-printer"></i>
+            <span>Thermal Print</span>
+        </button>
     </div>
 </div>
 
-<div class="row g-4">
+<div class="row g-4 d-print-none">
     <!-- Left: Order Items Ticket -->
     <div class="col-12 col-lg-8">
         <div class="pos-card mb-4">
@@ -185,7 +220,7 @@ $pay_class = match($order["payment_status"]) {
                             </tr>
                         </thead>
                         <tbody>
-                            <?php while ($item = mysqli_fetch_assoc($items)) { ?>
+                            <?php foreach ($order_items_list as $item) { ?>
                                 <tr>
                                     <td>
                                         <div class="fw-medium text-dark">
@@ -281,6 +316,60 @@ $pay_class = match($order["payment_status"]) {
 </div>
 
 <?php
+
+$thermal_items = [];
+$computed_items_subtotal = 0.0;
+foreach ($order_items_list as $it) {
+    $thermal_items[] = [
+        'name' => $it['menu_item_name'],
+        'quantity' => $it['quantity'],
+        'unit_price' => $it['unit_price'],
+        'subtotal' => $it['subtotal']
+    ];
+    $computed_items_subtotal += (float)$it['subtotal'];
+}
+$computed_items_subtotal = round($computed_items_subtotal > 0 ? $computed_items_subtotal : (float)$order['total_amount'], 2);
+
+$has_linked_invoice = !empty($linked_bill);
+$ord_grand_total = $has_linked_invoice ? round((float)$linked_bill['total_amount'], 2) : round((float)$order['total_amount'], 2);
+$ord_balance_due = $has_linked_invoice ? round(max(0, $ord_grand_total - $linked_paid_total), 2) : 0.0;
+$ord_pay_status_label = '';
+if ($has_linked_invoice) {
+    $is_paid_inv = ($linked_bill['payment_status'] === 'paid' || $ord_balance_due <= 0);
+    $ord_pay_status_label = $is_paid_inv ? 'Paid in Full' : ($linked_paid_total > 0 ? 'Partially Paid' : 'Unpaid');
+}
+$ord_tax_label = 'Tax / Surcharge';
+if ($has_linked_invoice && ((float)$linked_bill['tax'] > 0 || (float)$linked_bill['tax_input'] > 0)) {
+    $ord_tax_label .= (($linked_bill['tax_type'] ?? '') === 'percentage' && isset($linked_bill['tax_input']))
+        ? ' (' . rtrim(rtrim(number_format((float)$linked_bill['tax_input'], 2), '0'), '.') . '%)'
+        : ' (Fixed)';
+}
+
+$thermal_receipt = [
+    'mode' => 'order',
+    'title' => 'Order Receipt',
+    'doc_number' => '#ORD-' . (int)$id,
+    'doc_date' => formatDateTime($order['created_at']),
+    'order_ref' => '#ORD-' . (int)$id,
+    'customer_name' => $order['customer_name'] ?? 'Walk-in Guest',
+    'customer_phone' => $order['customer_phone'] ?? '',
+    'order_type' => ucwords(str_replace('_', ' ', $order['order_type'])),
+    'table_number' => $order['table_number'] ?? '',
+    'waiter_name' => $order['waiter_name'] ?? '',
+    'order_status' => $order['status'],
+    'payment_status_label' => $ord_pay_status_label,
+    'items' => $thermal_items,
+    'subtotal' => $has_linked_invoice ? round((float)$linked_bill['subtotal'], 2) : $computed_items_subtotal,
+    'discount' => $has_linked_invoice ? round((float)$linked_bill['discount'], 2) : 0.0,
+    'tax' => $has_linked_invoice ? round((float)$linked_bill['tax'], 2) : 0.0,
+    'tax_label' => $ord_tax_label,
+    'grand_total' => $ord_grand_total,
+    'show_payments' => $has_linked_invoice,
+    'total_paid' => $linked_paid_total,
+    'balance_due' => $ord_balance_due,
+    'payments' => $linked_payments
+];
+require_once "../includes/thermal-receipt.php";
 
 require_once "../includes/footer.php";
 
