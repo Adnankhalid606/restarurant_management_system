@@ -117,7 +117,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             : 0;
 
         if ($waiter_id <= 0) {
-            die("Please select a waiter.");
+            $_SESSION["error"] = "Please select a waiter.";
+            header("Location: edit.php?id=" . $id);
+            exit;
         }
     }
 
@@ -131,6 +133,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             AND is_active = 1";
 
     $stmt = mysqli_prepare($conn, $sql);
+    if (!$stmt) {
+        error_log("orders/edit.php prepare waiter check failed: " . mysqli_error($conn));
+        $_SESSION["error"] = "A database error occurred while validating the waiter.";
+        header("Location: edit.php?id=" . $id);
+        exit;
+    }
 
     mysqli_stmt_bind_param(
         $stmt,
@@ -138,12 +146,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $waiter_id
     );
 
-    mysqli_stmt_execute($stmt);
+    if (!mysqli_stmt_execute($stmt)) {
+        error_log("orders/edit.php execute waiter check failed: " . mysqli_stmt_error($stmt));
+        $_SESSION["error"] = "A database error occurred while validating the waiter.";
+        header("Location: edit.php?id=" . $id);
+        exit;
+    }
 
     $result = mysqli_stmt_get_result($stmt);
 
     if (mysqli_num_rows($result) === 0) {
-        die("Invalid waiter.");
+        $_SESSION["error"] = "Invalid waiter.";
+        header("Location: edit.php?id=" . $id);
+        exit;
     }
 
 
@@ -155,8 +170,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         "pickup"
     ];
 
-    if (!in_array($order_type, $allowed_order_types)) {
-        die("Invalid order type.");
+    if (!in_array($order_type, $allowed_order_types, true)) {
+        $_SESSION["error"] = "Invalid order type.";
+        header("Location: edit.php?id=" . $id);
+        exit;
     }
 
 
@@ -170,28 +187,78 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     ];
 
     if (!in_array($status, $allowed_statuses, true)) {
-        die("Invalid status.");
+        $_SESSION["error"] = "Invalid status.";
+        header("Location: edit.php?id=" . $id);
+        exit;
     }
 
-    // Integrity Safeguard: A completed order cannot be cancelled through ordinary editing
-    if ($order["status"] === "completed" && $status === "cancelled") {
-        die("Security Notice: Completed orders cannot be cancelled. Kitchen fulfillment and inventory consumption have already been finalized.");
+    // Remove table if needed
+    if ($order_type !== "dine_in") {
+        $table_id = null;
     }
 
-    // Query linked bill and payments if status change involves cancellation or demotion from ready
+    mysqli_begin_transaction($conn);
+
+try {
+    // 1. Lock and re-fetch authoritative order state inside transaction
+    $ord_lock_stmt = mysqli_prepare($conn, "SELECT * FROM orders WHERE id = ? FOR UPDATE");
+    if (!$ord_lock_stmt) {
+        error_log("orders/edit.php prepare order lock failed: " . mysqli_error($conn));
+        throw new Exception("A database error occurred while loading the order.");
+    }
+    mysqli_stmt_bind_param($ord_lock_stmt, "i", $id);
+    if (!mysqli_stmt_execute($ord_lock_stmt)) {
+        error_log("orders/edit.php execute order lock failed: " . mysqli_stmt_error($ord_lock_stmt));
+        throw new Exception("A database error occurred while loading the order.");
+    }
+    $locked_order = mysqli_fetch_assoc(mysqli_stmt_get_result($ord_lock_stmt));
+    mysqli_stmt_close($ord_lock_stmt);
+
+    if (!$locked_order) {
+        throw new Exception("Record not found or invalid identifier.");
+    }
+
+    if ($_SESSION["role"] === "waiter" && (int) $locked_order["waiter_id"] !== (int) $_SESSION["user_id"]) {
+        throw new Exception("Access denied to requested order.");
+    }
+
+    // 2. Terminal state safeguards against locked row
+    if ($locked_order["status"] === "completed" && $status !== "completed") {
+        throw new Exception("Security Notice: Completed orders are finalized and cannot transition to " . ucfirst($status) . ".");
+    }
+
+    if ($locked_order["status"] === "cancelled" && $status !== "cancelled") {
+        throw new Exception("Security Notice: Cancelled orders cannot be reopened or transitioned to " . ucfirst($status) . ".");
+    }
+
+    // 3. Lock associated bill and check invoice_payments while lock is held
     $linked_bill = null;
     $payment_count = 0;
     $total_paid = 0.0;
 
-    $bill_stmt = mysqli_prepare($conn, "SELECT id, invoice_number, payment_status, total_amount FROM bills WHERE order_id = ?");
+    $bill_stmt = mysqli_prepare($conn, "SELECT id, invoice_number, payment_status, total_amount FROM bills WHERE order_id = ? FOR UPDATE");
+    if (!$bill_stmt) {
+        error_log("orders/edit.php prepare bill lock failed: " . mysqli_error($conn));
+        throw new Exception("A database error occurred while checking the associated invoice.");
+    }
     mysqli_stmt_bind_param($bill_stmt, "i", $id);
-    mysqli_stmt_execute($bill_stmt);
+    if (!mysqli_stmt_execute($bill_stmt)) {
+        error_log("orders/edit.php execute bill lock failed: " . mysqli_stmt_error($bill_stmt));
+        throw new Exception("A database error occurred while checking the associated invoice.");
+    }
     $bill_res = mysqli_stmt_get_result($bill_stmt);
     if ($bill_res && $b_row = mysqli_fetch_assoc($bill_res)) {
         $linked_bill = $b_row;
         $pay_stmt = mysqli_prepare($conn, "SELECT COUNT(*) AS payment_count, COALESCE(SUM(amount), 0) AS total_paid FROM invoice_payments WHERE bill_id = ?");
+        if (!$pay_stmt) {
+            error_log("orders/edit.php prepare payment check failed: " . mysqli_error($conn));
+            throw new Exception("A database error occurred while checking invoice payments.");
+        }
         mysqli_stmt_bind_param($pay_stmt, "i", $linked_bill['id']);
-        mysqli_stmt_execute($pay_stmt);
+        if (!mysqli_stmt_execute($pay_stmt)) {
+            error_log("orders/edit.php execute payment check failed: " . mysqli_stmt_error($pay_stmt));
+            throw new Exception("A database error occurred while checking invoice payments.");
+        }
         $pay_res = mysqli_stmt_get_result($pay_stmt);
         if ($pay_res && $pay_row = mysqli_fetch_assoc($pay_res)) {
             $payment_count = (int) ($pay_row['payment_count'] ?? 0);
@@ -203,45 +270,24 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     $inv_label = ($linked_bill && !empty($linked_bill['invoice_number'])) ? $linked_bill['invoice_number'] : ($linked_bill ? ('Bill #' . $linked_bill['id']) : 'Invoice');
 
-    // Integrity Safeguard: An order with recorded payments cannot be cancelled
+    // 4. Integrity Safeguard: An order with recorded payments cannot be cancelled
     if ($status === "cancelled") {
-        if ($payment_count > 0 || $total_paid > 0 || ($linked_bill && $linked_bill["payment_status"] === "paid") || $order["payment_status"] === "paid") {
-            die("Security Notice: Cannot cancel Order #$id because recorded payments exist on $inv_label. A payment reversal or refund must be processed through an authorized accounting workflow before cancellation.");
+        if ($payment_count > 0 || $total_paid > 0 || ($linked_bill && $linked_bill["payment_status"] === "paid") || $locked_order["payment_status"] === "paid") {
+            throw new Exception("Security Notice: Cannot cancel Order #$id because recorded payments exist on $inv_label. A payment reversal or refund must be processed through an authorized accounting workflow before cancellation.");
         }
     }
 
-    // Integrity Safeguard: An order in ready status with recorded payments cannot be demoted to pending or preparing
-    if ($order["status"] === "ready" && in_array($status, ["pending", "preparing"], true)) {
+    // 5. Integrity Safeguard: An order in ready status with recorded payments cannot be demoted to pending or preparing
+    if ($locked_order["status"] === "ready" && in_array($status, ["pending", "preparing"], true)) {
         if ($payment_count > 0 || $total_paid > 0 || ($linked_bill && $linked_bill["payment_status"] === "paid")) {
-            die("Security Notice: Cannot revert Order #$id to " . ucfirst($status) . " because recorded payments exist on $inv_label. A payment reversal or refund must be processed through an authorized accounting workflow before modifying status.");
+            throw new Exception("Security Notice: Cannot revert Order #$id to " . ucfirst($status) . " because recorded payments exist on $inv_label. A payment reversal or refund must be processed through an authorized accounting workflow before modifying status.");
         }
     }
 
-
-
-    // Remove table if needed
-
-    if ($order_type !== "dine_in") {
-        $table_id = null;
-    }
-
-    // Get old table
-
-$old_table_id = !empty($order["table_id"])
-    ? (int) $order["table_id"]
-    : null;
-
-$new_table_id = $table_id;
-
-
-
-
-
-
-
-    mysqli_begin_transaction($conn);
-
-try {
+    $old_table_id = !empty($locked_order["table_id"])
+        ? (int) $locked_order["table_id"]
+        : null;
+    $new_table_id = $table_id;
 
     if ($status === "cancelled") {
 
@@ -253,6 +299,10 @@ try {
                     WHERE id = ?";
 
             $stmt = mysqli_prepare($conn, $sql);
+            if (!$stmt) {
+                error_log("orders/edit.php prepare release table failed: " . mysqli_error($conn));
+                throw new Exception("A database error occurred while updating table availability.");
+            }
 
             mysqli_stmt_bind_param(
                 $stmt,
@@ -260,24 +310,41 @@ try {
                 $old_table_id
             );
 
-            mysqli_stmt_execute($stmt);
+            if (!mysqli_stmt_execute($stmt)) {
+                error_log("orders/edit.php execute release table failed: " . mysqli_stmt_error($stmt));
+                throw new Exception("A database error occurred while updating table availability.");
+            }
         }
 
         // If an unpaid draft bill exists with 0 payments, safely delete it
         if ($linked_bill && $payment_count === 0) {
             $del_stmt = mysqli_prepare($conn, "DELETE FROM bills WHERE id = ?");
+            if (!$del_stmt) {
+                error_log("orders/edit.php prepare delete bill failed: " . mysqli_error($conn));
+                throw new Exception("A database error occurred while removing the uncollected draft invoice.");
+            }
             mysqli_stmt_bind_param($del_stmt, "i", $linked_bill['id']);
-            mysqli_stmt_execute($del_stmt);
+            if (!mysqli_stmt_execute($del_stmt)) {
+                error_log("orders/edit.php execute delete bill failed: " . mysqli_stmt_error($del_stmt));
+                throw new Exception("A database error occurred while removing the uncollected draft invoice.");
+            }
             mysqli_stmt_close($del_stmt);
         }
 
     } else {
 
         // If demoting from ready to pending/preparing with 0 payments, delete draft bill
-        if ($order["status"] === "ready" && in_array($status, ["pending", "preparing"], true) && $linked_bill && $payment_count === 0) {
+        if ($locked_order["status"] === "ready" && in_array($status, ["pending", "preparing"], true) && $linked_bill && $payment_count === 0) {
             $del_stmt = mysqli_prepare($conn, "DELETE FROM bills WHERE id = ?");
+            if (!$del_stmt) {
+                error_log("orders/edit.php prepare delete draft bill failed: " . mysqli_error($conn));
+                throw new Exception("A database error occurred while removing the uncollected draft invoice.");
+            }
             mysqli_stmt_bind_param($del_stmt, "i", $linked_bill['id']);
-            mysqli_stmt_execute($del_stmt);
+            if (!mysqli_stmt_execute($del_stmt)) {
+                error_log("orders/edit.php execute delete draft bill failed: " . mysqli_stmt_error($del_stmt));
+                throw new Exception("A database error occurred while removing the uncollected draft invoice.");
+            }
             mysqli_stmt_close($del_stmt);
         }
 
@@ -293,6 +360,10 @@ try {
                     WHERE id = ?";
 
             $stmt = mysqli_prepare($conn, $sql);
+            if (!$stmt) {
+                error_log("orders/edit.php prepare table check failed: " . mysqli_error($conn));
+                throw new Exception("A database error occurred while checking table availability.");
+            }
 
             mysqli_stmt_bind_param(
                 $stmt,
@@ -300,7 +371,10 @@ try {
                 $new_table_id
             );
 
-            mysqli_stmt_execute($stmt);
+            if (!mysqli_stmt_execute($stmt)) {
+                error_log("orders/edit.php execute table check failed: " . mysqli_stmt_error($stmt));
+                throw new Exception("A database error occurred while checking table availability.");
+            }
 
             $result = mysqli_stmt_get_result($stmt);
 
@@ -328,6 +402,10 @@ try {
                     WHERE id = ?";
 
             $stmt = mysqli_prepare($conn, $sql);
+            if (!$stmt) {
+                error_log("orders/edit.php prepare release old table failed: " . mysqli_error($conn));
+                throw new Exception("A database error occurred while releasing the previous table.");
+            }
 
             mysqli_stmt_bind_param(
                 $stmt,
@@ -335,7 +413,10 @@ try {
                 $old_table_id
             );
 
-            mysqli_stmt_execute($stmt);
+            if (!mysqli_stmt_execute($stmt)) {
+                error_log("orders/edit.php execute release old table failed: " . mysqli_stmt_error($stmt));
+                throw new Exception("A database error occurred while releasing the previous table.");
+            }
         }
 
 
@@ -351,6 +432,10 @@ try {
                     WHERE id = ?";
 
             $stmt = mysqli_prepare($conn, $sql);
+            if (!$stmt) {
+                error_log("orders/edit.php prepare occupy new table failed: " . mysqli_error($conn));
+                throw new Exception("A database error occurred while occupying the selected table.");
+            }
 
             mysqli_stmt_bind_param(
                 $stmt,
@@ -358,7 +443,10 @@ try {
                 $new_table_id
             );
 
-            mysqli_stmt_execute($stmt);
+            if (!mysqli_stmt_execute($stmt)) {
+                error_log("orders/edit.php execute occupy new table failed: " . mysqli_stmt_error($stmt));
+                throw new Exception("A database error occurred while occupying the selected table.");
+            }
         }
     }
 
@@ -374,6 +462,10 @@ try {
             WHERE id = ?";
 
     $stmt = mysqli_prepare($conn, $sql);
+    if (!$stmt) {
+        error_log("orders/edit.php prepare update order failed: " . mysqli_error($conn));
+        throw new Exception("A database error occurred while updating the order.");
+    }
 
     mysqli_stmt_bind_param(
         $stmt,
@@ -386,7 +478,10 @@ try {
         $id
     );
 
-    mysqli_stmt_execute($stmt);
+    if (!mysqli_stmt_execute($stmt)) {
+        error_log("orders/edit.php execute update order failed: " . mysqli_stmt_error($stmt));
+        throw new Exception("A database error occurred while updating the order.");
+    }
 
     // Automatically generate customer invoice if order transitioned to ready or completed
     if ($status === 'ready' || $status === 'completed') {
@@ -401,8 +496,9 @@ try {
 } catch (Exception $error) {
 
     mysqli_rollback($conn);
-
-    die($error->getMessage());
+    $_SESSION["error"] = $error->getMessage();
+    header("Location: edit.php?id=" . $id);
+    exit;
 }
 }
 
@@ -458,6 +554,13 @@ require_once "../includes/header.php";
         Order items and total pricing (Rs. <?php echo number_format($order["total_amount"], 2); ?>) are locked for audit integrity. Use this screen to update seating, service type, or workflow status.
     </div>
 </div>
+
+<?php if (isset($_SESSION["error"])) { ?>
+    <div class="alert alert-danger border py-2 px-3 mb-4 small d-flex align-items-center gap-2">
+        <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0 text-danger"></i>
+        <div><?php echo htmlspecialchars($_SESSION["error"], ENT_QUOTES, 'UTF-8'); unset($_SESSION["error"]); ?></div>
+    </div>
+<?php } ?>
 
 <form method="POST">
     <?php echo csrf_field(); ?>
@@ -553,6 +656,10 @@ require_once "../includes/header.php";
                             <input type="hidden" name="status" value="completed">
                             <input type="text" class="form-control pos-form-control bg-light text-muted" value="Completed (Locked)" readonly>
                             <small class="text-muted d-block mt-1">Completed orders are finalized for kitchen fulfillment and financial accounting.</small>
+                        <?php } elseif ($order["status"] === "cancelled") { ?>
+                            <input type="hidden" name="status" value="cancelled">
+                            <input type="text" class="form-control pos-form-control bg-light text-muted" value="Cancelled (Locked)" readonly>
+                            <small class="text-muted d-block mt-1">Cancelled orders are closed and cannot be reopened.</small>
                         <?php } elseif ($order["status"] === "ready" && $has_recorded_payments) { ?>
                             <select name="status" id="orderStatus" class="form-select pos-form-control" required>
                                 <option value="ready" selected>Ready</option>

@@ -30,51 +30,49 @@ if (!function_exists('transitionKitchenOrderStatus')) {
             return ['success' => false, 'message' => 'Invalid status requested.'];
         }
 
-        // Fetch order with current status, payment_status and table
-        $sql = "SELECT id, table_id, status, payment_status FROM orders WHERE id = ?";
-        $stmt = mysqli_prepare($conn, $sql);
-        if (!$stmt) {
-            return ['success' => false, 'message' => 'Database error preparing query.'];
-        }
-        mysqli_stmt_bind_param($stmt, 'i', $order_id);
-        mysqli_stmt_execute($stmt);
-        $res = mysqli_stmt_get_result($stmt);
-        $order = mysqli_fetch_assoc($res);
-
-        if (!$order) {
-            return ['success' => false, 'message' => 'Order #' . $order_id . ' not found.'];
-        }
-
-        $current_status = $order['status'];
-
-        // Terminal state checks
-        if ($current_status === 'completed' || $current_status === 'cancelled') {
-            return ['success' => false, 'message' => 'Order #' . $order_id . ' is already ' . $current_status . ' and cannot be updated.'];
-        }
-
-        // Validate workflow transition rules strictly
-        $valid = false;
-        if ($current_status === 'pending' && $target_status === 'preparing') {
-            $valid = true;
-        } elseif ($current_status === 'preparing' && $target_status === 'ready') {
-            $valid = true;
-        } elseif ($current_status === 'ready' && $target_status === 'completed') {
-            $valid = true;
-        } elseif ($target_status === 'cancelled') {
-            // Any active status (pending, preparing, ready) can be cancelled
-            $valid = true;
-        }
-
-        if (!$valid) {
-            return [
-                'success' => false, 
-                'message' => 'Cannot transition order #' . $order_id . ' from "' . ucfirst($current_status) . '" to "' . ucfirst($target_status) . '".'
-            ];
-        }
-
         mysqli_begin_transaction($conn);
 
         try {
+            // Fetch and lock order with current status, payment_status and table
+            $sql = "SELECT id, table_id, status, payment_status FROM orders WHERE id = ? FOR UPDATE";
+            $stmt = mysqli_prepare($conn, $sql);
+            if (!$stmt) {
+                throw new Exception('Database error preparing query.');
+            }
+            mysqli_stmt_bind_param($stmt, 'i', $order_id);
+            if (!mysqli_stmt_execute($stmt)) {
+                throw new Exception('Database error loading order state.');
+            }
+            $res = mysqli_stmt_get_result($stmt);
+            $order = mysqli_fetch_assoc($res);
+
+            if (!$order) {
+                throw new Exception('Order #' . $order_id . ' not found.');
+            }
+
+            $current_status = $order['status'];
+
+            // Terminal state checks
+            if ($current_status === 'completed' || $current_status === 'cancelled') {
+                throw new Exception('Order #' . $order_id . ' is already ' . $current_status . ' and cannot be updated.');
+            }
+
+            // Validate workflow transition rules strictly against locked row
+            $valid = false;
+            if ($current_status === 'pending' && $target_status === 'preparing') {
+                $valid = true;
+            } elseif ($current_status === 'preparing' && $target_status === 'ready') {
+                $valid = true;
+            } elseif ($current_status === 'ready' && $target_status === 'completed') {
+                $valid = true;
+            } elseif ($target_status === 'cancelled') {
+                // Any active status (pending, preparing, ready) can be cancelled
+                $valid = true;
+            }
+
+            if (!$valid) {
+                throw new Exception('Cannot transition order #' . $order_id . ' from "' . ucfirst($current_status) . '" to "' . ucfirst($target_status) . '".');
+            }
             // Protect order cancellation against active payments and orphaned invoices
             if ($target_status === 'cancelled') {
                 $bill_stmt = mysqli_prepare($conn, "SELECT id, invoice_number, payment_status, total_amount FROM bills WHERE order_id = ? FOR UPDATE");
